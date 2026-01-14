@@ -28,17 +28,23 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
 
         this.consumeContext(UMB_DOCUMENT_WORKSPACE_CONTEXT, (workspace) => {
             if (!workspace) return;
-            
+
             this.#documentWorkspace = workspace;
         });
 
         this.consumeContext(UMB_CONTENT_WORKSPACE_CONTEXT, (workspace) => {
             if (!workspace) return;
-            
+
             this.observe(
                 workspace.unique,
-                (unique) => {
+                async (unique) => {
                     this._documentId = unique ?? undefined;
+
+                    // Clear validation results when switching documents
+                    const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
+                    if (validationContext) {
+                        validationContext.clearValidation();
+                    }
                     
                     // Auto-validate when document ID is available
                     if (unique) {
@@ -98,6 +104,11 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
         if (!validationContext) return;
 
+        // Skip validation entirely if we already know there's no validator
+        if (this._validationResult?.hasValidator === false) {
+            return;
+        }
+
         // Request save to ensure latest content, then validate
         try {
             if (this.#documentWorkspace?.requestSubmit) {
@@ -117,6 +128,11 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         if (!validationContext) return;
 
         this._error = undefined;
+
+        // Skip validation entirely if we already know there's no validator
+        if (this._validationResult?.hasValidator === false) {
+            return;
+        }
 
         try {
             // Request save to update preview content before validation
@@ -145,30 +161,50 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         }
     }
 
-    #renderError() {
-        if (!this._error) return nothing;
+    #renderValidationResults() {
+        // Loading state
+        if (this._isValidating) {
+            return html`
+                <uui-box headline="Status" headline-variant="h5">
+                    <div style="display: flex; align-items: center; gap: var(--uui-size-space-3);">
+                        <uui-loader></uui-loader>
+                        <span>Validating...</span>
+                    </div>
+                </uui-box>
+            `;
+        }
 
-        return html`
-            <uui-box headline="Error" headline-variant="h5">
-                <p><strong style="color: var(--uui-color-danger);">${this._error}</strong></p>
-            </uui-box>
-        `;
-    }
+        // Error state
+        if (this._error) {
+            return html`
+                <uui-box headline="Status" headline-variant="h5">
+                    <p><strong style="color: var(--uui-color-danger);">${this._error}</strong></p>
+                </uui-box>
+            `;
+        }
 
-    #renderEmptyState() {
-        if (!this._validationResult) return nothing;
+        // No validation result yet
+        if (!this._validationResult) {
+            return html`
+                <uui-box headline="Status" headline-variant="h5">
+                    <p style="color: var(--uui-color-text-alt);">Ready to validate</p>
+                </uui-box>
+            `;
+        }
 
+        // No validator configured
         if (!this._validationResult.hasValidator) {
             return html`
-                <uui-box headline="No Validator Available" headline-variant="h5">
+                <uui-box headline="Status" headline-variant="h5">
                     <p>No validation configured for this content type (${this._validationResult.contentTypeAlias}).</p>
                 </uui-box>
             `;
         }
 
+        // Validation passed
         if (this._validationResult.messages.length === 0) {
             return html`
-                <uui-box headline="Validation Complete" headline-variant="h5">
+                <uui-box headline="Validation Results" headline-variant="h5">
                     <p style="color: var(--uui-color-positive);">
                         <uui-icon name="icon-check"></uui-icon>
                         All validations passed successfully.
@@ -177,14 +213,7 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             `;
         }
 
-        return nothing;
-    }
-
-    #renderValidationMessages() {
-        if (!this._validationResult || this._validationResult.messages.length === 0) {
-            return nothing;
-        }
-
+        // Validation messages
         return html`
             <uui-box headline="Validation Results" headline-variant="h5">
                 <div>
@@ -252,25 +281,25 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         return html`
             <umb-body-layout header-transparent header-fit-height>
                 <div style="display: flex; flex-direction: column; gap: var(--uui-size-layout-1);">
-                    <uui-box headline-variant="h4">
-                        ${this.#renderHeader()}
-                        <uui-button-group>
-                            <uui-button
-                                look="primary"
-                                color="positive"
-                                label="Validate Document"
-                                @click=${this.#handleValidateClick}
-                                ?disabled=${!this._documentId || this._isValidating}>
-                                <uui-icon name="icon-check"></uui-icon>
-                                Validate Document
-                            </uui-button>
-                            ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}
-                        </uui-button-group>
-                    </uui-box>
+                    ${this._validationResult?.hasValidator !== false && this._validationResult !== undefined ? html`
+                        <uui-box headline-variant="h4">
+                            ${this.#renderHeader()}
+                            <uui-button-group>
+                                <uui-button
+                                    look="primary"
+                                    color="positive"
+                                    label="Validate Document"
+                                    @click=${this.#handleValidateClick}
+                                    ?disabled=${!this._documentId || this._isValidating}>
+                                    <uui-icon name="icon-check"></uui-icon>
+                                    Validate Document
+                                </uui-button>
+                                ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}
+                            </uui-button-group>
+                        </uui-box>
+                    ` : nothing}
 
-                    ${this.#renderError()}
-                    ${this.#renderEmptyState()}
-                    ${this.#renderValidationMessages()}
+                    ${this.#renderValidationResults()}
                 </div>
             </umb-body-layout>
         `;
