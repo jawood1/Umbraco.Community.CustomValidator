@@ -2,10 +2,12 @@ import { customElement, state, html, nothing, repeat } from '@umbraco-cms/backof
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
-import { UMB_DOCUMENT_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/document";
 import type { UmbWorkspaceViewElement } from '@umbraco-cms/backoffice/workspace';
 import { VALIDATION_WORKSPACE_CONTEXT } from './validation-workspace-context.js';
 import type { ValidationResult, ValidationMessage } from './types.js';
+
+// Module-level map to track which documents have been validated
+const validatedDocuments = new Map<string, boolean>();
 
 @customElement('my-validation-workspace-view')
 export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorkspaceViewElement {
@@ -21,24 +23,23 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
     @state()
     private _error?: string;
 
-    #documentWorkspace?: typeof UMB_DOCUMENT_WORKSPACE_CONTEXT.TYPE;
+    #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
+    #currentDocumentId?: string;
 
     constructor() {
         super();
 
-        this.consumeContext(UMB_DOCUMENT_WORKSPACE_CONTEXT, (workspace) => {
-            if (!workspace) return;
-
-            this.#documentWorkspace = workspace;
-        });
-
         this.consumeContext(UMB_CONTENT_WORKSPACE_CONTEXT, (workspace) => {
             if (!workspace) return;
+
+            this.#contentWorkspace = workspace;
 
             this.observe(
                 workspace.unique,
                 async (unique) => {
+                    const previousDocumentId = this.#currentDocumentId;
                     this._documentId = unique ?? undefined;
+                    this.#currentDocumentId = unique ?? undefined;
 
                     // Clear validation results when switching documents
                     const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
@@ -46,9 +47,11 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                         validationContext.clearValidation();
                     }
                     
-                    // Auto-validate when document ID is available
-                    if (unique) {
-                        this.#autoValidateOnLoad(unique);
+                    // Only reset validation flag when truly switching between different documents
+                    if (previousDocumentId !== undefined && previousDocumentId !== unique) {
+                        if (unique) {
+                            validatedDocuments.delete(unique);
+                        }
                     }
                 }
             );
@@ -73,29 +76,43 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         });
     }
 
-    async #autoValidateOnLoad(documentId: string) {
-        // Auto-validate when component loads to show any blocking errors
-        const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
-        if (!validationContext) return;
 
-        // Small delay to ensure workspace is fully loaded
-        setTimeout(async () => {
-            try {
-                await validationContext.validateManually(documentId);
-            } catch (error) {
-                // Silent fail on auto-validation
-                console.debug('Auto-validation skipped:', error);
-            }
-        }, 1000);
-    }
 
     override connectedCallback() {
         super.connectedCallback();
         
-        // Re-validate when tab becomes visible
+        const hasValidatedOnce = this._documentId ? validatedDocuments.get(this._documentId) ?? false : false;
+        
+        // Validate when tab becomes visible
         if (this._documentId) {
-            this.#revalidateOnTabSwitch();
+            if (!hasValidatedOnce) {
+                validatedDocuments.set(this._documentId, true);
+                this.#validateWithoutSave();
+            } else {
+                this.#revalidateOnTabSwitch();
+            }
         }
+    }
+
+    async #validateWithoutSave() {
+        if (!this._documentId) return;
+
+        const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
+        if (!validationContext) return;
+
+        // Skip validation entirely if we already know there's no validator
+        if (this._validationResult?.hasValidator === false) {
+            return;
+        }
+
+        // Small delay to ensure workspace is fully loaded
+        setTimeout(async () => {
+            try {
+                await validationContext.validateManually(this._documentId!);
+            } catch (error) {
+                console.debug('Validation skipped:', error);
+            }
+        }, 1000);
     }
 
     async #revalidateOnTabSwitch() {
@@ -111,8 +128,8 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
 
         // Request save to ensure latest content, then validate
         try {
-            if (this.#documentWorkspace?.requestSubmit) {
-                await this.#documentWorkspace.requestSubmit();
+            if (this.#contentWorkspace?.requestSubmit) {
+                await this.#contentWorkspace.requestSubmit();
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
             await validationContext.validateManually(this._documentId);
@@ -136,8 +153,8 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
 
         try {
             // Request save to update preview content before validation
-            if (this.#documentWorkspace?.requestSubmit) {
-                await this.#documentWorkspace.requestSubmit();
+            if (this.#contentWorkspace?.requestSubmit) {
+                await this.#contentWorkspace.requestSubmit();
                 // Small delay to allow content cache to update
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
@@ -162,8 +179,8 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
     }
 
     #renderValidationResults() {
-        // Loading state
-        if (this._isValidating) {
+        // Loading state or no validation result yet
+        if (this._isValidating || !this._validationResult) {
             return html`
                 <uui-box headline="Status" headline-variant="h5">
                     <div style="display: flex; align-items: center; gap: var(--uui-size-space-3);">
@@ -179,15 +196,6 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             return html`
                 <uui-box headline="Status" headline-variant="h5">
                     <p><strong style="color: var(--uui-color-danger);">${this._error}</strong></p>
-                </uui-box>
-            `;
-        }
-
-        // No validation result yet
-        if (!this._validationResult) {
-            return html`
-                <uui-box headline="Status" headline-variant="h5">
-                    <p style="color: var(--uui-color-text-alt);">Ready to validate</p>
                 </uui-box>
             `;
         }

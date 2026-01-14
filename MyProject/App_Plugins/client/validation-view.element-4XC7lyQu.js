@@ -1,39 +1,38 @@
-import { nothing as h, html as a, repeat as k, state as p, customElement as E } from "@umbraco-cms/backoffice/external/lit";
+import { nothing as h, html as a, repeat as E, state as f, customElement as M } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement as O } from "@umbraco-cms/backoffice/lit-element";
 import { UmbTextStyles as A } from "@umbraco-cms/backoffice/style";
-import { UMB_CONTENT_WORKSPACE_CONTEXT as M } from "@umbraco-cms/backoffice/content";
-import { UMB_DOCUMENT_WORKSPACE_CONTEXT as W } from "@umbraco-cms/backoffice/document";
-import { VALIDATION_WORKSPACE_CONTEXT as d } from "./validation-workspace-context-Dzg7J8I0.js";
-var I = Object.defineProperty, P = Object.getOwnPropertyDescriptor, b = (t) => {
+import { UMB_CONTENT_WORKSPACE_CONTEXT as D } from "@umbraco-cms/backoffice/content";
+import { VALIDATION_WORKSPACE_CONTEXT as c } from "./validation-workspace-context-Dzg7J8I0.js";
+var P = Object.defineProperty, N = Object.getOwnPropertyDescriptor, x = (t) => {
   throw TypeError(t);
-}, v = (t, i, e, l) => {
-  for (var n = l > 1 ? void 0 : l ? P(i, e) : i, _ = t.length - 1, f; _ >= 0; _--)
-    (f = t[_]) && (n = (l ? f(i, e, n) : f(n)) || n);
-  return l && n && I(i, e, n), n;
-}, g = (t, i, e) => i.has(t) || b("Cannot " + e), c = (t, i, e) => (g(t, i, "read from private field"), e ? e.call(t) : i.get(t)), m = (t, i, e) => i.has(t) ? b("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(t) : i.set(t, e), N = (t, i, e, l) => (g(t, i, "write to private field"), i.set(t, e), e), r = (t, i, e) => (g(t, i, "access private method"), e), s, o, x, w, y, C, V, R, $, S, T;
+}, v = (t, i, e, n) => {
+  for (var s = n > 1 ? void 0 : n ? N(i, e) : i, m = t.length - 1, g; m >= 0; m--)
+    (g = t[m]) && (s = (n ? g(i, e, s) : g(s)) || s);
+  return n && s && P(i, e, s), s;
+}, b = (t, i, e) => i.has(t) || x("Cannot " + e), d = (t, i, e) => (b(t, i, "read from private field"), i.get(t)), p = (t, i, e) => i.has(t) ? x("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(t) : i.set(t, e), V = (t, i, e, n) => (b(t, i, "write to private field"), i.set(t, e), e), r = (t, i, e) => (b(t, i, "access private method"), e), l, _, o, C, R, w, $, I, k, S, T, W;
+const y = /* @__PURE__ */ new Map();
 let u = class extends O {
   constructor() {
-    super(), m(this, o), this._isValidating = !1, m(this, s), m(this, y, async () => {
+    super(), p(this, o), this._isValidating = !1, p(this, l), p(this, _), p(this, w, async () => {
       if (!this._documentId) return;
-      const t = await this.getContext(d);
+      const t = await this.getContext(c);
       if (t && (this._error = void 0, this._validationResult?.hasValidator !== !1))
         try {
-          c(this, s)?.requestSubmit && (await c(this, s).requestSubmit(), await new Promise((i) => setTimeout(i, 500))), await t.validateManually(this._documentId);
+          d(this, l)?.requestSubmit && (await d(this, l).requestSubmit(), await new Promise((i) => setTimeout(i, 500))), await t.validateManually(this._documentId);
         } catch (i) {
           this._error = i instanceof Error ? i.message : "Validation failed";
         }
-    }), this.consumeContext(W, (t) => {
-      t && N(this, s, t);
-    }), this.consumeContext(M, (t) => {
-      t && this.observe(
+    }), this.consumeContext(D, (t) => {
+      t && (V(this, l, t), this.observe(
         t.unique,
         async (i) => {
-          this._documentId = i ?? void 0;
-          const e = await this.getContext(d);
-          e && e.clearValidation(), i && r(this, o, x).call(this, i);
+          const e = d(this, _);
+          this._documentId = i ?? void 0, V(this, _, i ?? void 0);
+          const n = await this.getContext(c);
+          n && n.clearValidation(), e !== void 0 && e !== i && i && y.delete(i);
         }
-      );
-    }), this.consumeContext(d, (t) => {
+      ));
+    }), this.consumeContext(c, (t) => {
       t && (this.observe(
         t.validationResult,
         (i) => {
@@ -48,7 +47,9 @@ let u = class extends O {
     });
   }
   connectedCallback() {
-    super.connectedCallback(), this._documentId && r(this, o, w).call(this);
+    super.connectedCallback();
+    const t = this._documentId ? y.get(this._documentId) ?? !1 : !1;
+    this._documentId && (t ? r(this, o, R).call(this) : (y.set(this._documentId, !0), r(this, o, C).call(this)));
   }
   render() {
     return a`
@@ -56,13 +57,13 @@ let u = class extends O {
                 <div style="display: flex; flex-direction: column; gap: var(--uui-size-layout-1);">
                     ${this._validationResult?.hasValidator !== !1 && this._validationResult !== void 0 ? a`
                         <uui-box headline-variant="h4">
-                            ${r(this, o, T).call(this)}
+                            ${r(this, o, W).call(this)}
                             <uui-button-group>
                                 <uui-button
                                     look="primary"
                                     color="positive"
                                     label="Validate Document"
-                                    @click=${c(this, y)}
+                                    @click=${d(this, w)}
                                     ?disabled=${!this._documentId || this._isValidating}>
                                     <uui-icon name="icon-check"></uui-icon>
                                     Validate Document
@@ -72,36 +73,38 @@ let u = class extends O {
                         </uui-box>
                     ` : h}
 
-                    ${r(this, o, V).call(this)}
+                    ${r(this, o, I).call(this)}
                 </div>
             </umb-body-layout>
         `;
   }
 };
-s = /* @__PURE__ */ new WeakMap();
+l = /* @__PURE__ */ new WeakMap();
+_ = /* @__PURE__ */ new WeakMap();
 o = /* @__PURE__ */ new WeakSet();
-x = async function(t) {
-  const i = await this.getContext(d);
-  i && setTimeout(async () => {
+C = async function() {
+  if (!this._documentId) return;
+  const t = await this.getContext(c);
+  t && this._validationResult?.hasValidator !== !1 && setTimeout(async () => {
     try {
-      await i.validateManually(t);
-    } catch (e) {
-      console.debug("Auto-validation skipped:", e);
+      await t.validateManually(this._documentId);
+    } catch (i) {
+      console.debug("Validation skipped:", i);
     }
   }, 1e3);
 };
-w = async function() {
+R = async function() {
   if (!this._documentId) return;
-  const t = await this.getContext(d);
+  const t = await this.getContext(c);
   if (t && this._validationResult?.hasValidator !== !1)
     try {
-      c(this, s)?.requestSubmit && (await c(this, s).requestSubmit(), await new Promise((i) => setTimeout(i, 500))), await t.validateManually(this._documentId);
+      d(this, l)?.requestSubmit && (await d(this, l).requestSubmit(), await new Promise((i) => setTimeout(i, 500))), await t.validateManually(this._documentId);
     } catch (i) {
       console.debug("Auto-validation on tab switch skipped:", i);
     }
 };
-y = /* @__PURE__ */ new WeakMap();
-C = function(t) {
+w = /* @__PURE__ */ new WeakMap();
+$ = function(t) {
   switch (t.toLowerCase()) {
     case "error":
       return "danger";
@@ -113,8 +116,8 @@ C = function(t) {
       return "default";
   }
 };
-V = function() {
-  return this._isValidating ? a`
+I = function() {
+  return this._isValidating || !this._validationResult ? a`
                 <uui-box headline="Status" headline-variant="h5">
                     <div style="display: flex; align-items: center; gap: var(--uui-size-space-3);">
                         <uui-loader></uui-loader>
@@ -125,7 +128,7 @@ V = function() {
                 <uui-box headline="Status" headline-variant="h5">
                     <p><strong style="color: var(--uui-color-danger);">${this._error}</strong></p>
                 </uui-box>
-            ` : this._validationResult ? this._validationResult.hasValidator ? this._validationResult.messages.length === 0 ? a`
+            ` : this._validationResult.hasValidator ? this._validationResult.messages.length === 0 ? a`
                 <uui-box headline="Validation Results" headline-variant="h5">
                     <p style="color: var(--uui-color-positive);">
                         <uui-icon name="icon-check"></uui-icon>
@@ -135,10 +138,10 @@ V = function() {
             ` : a`
             <uui-box headline="Validation Results" headline-variant="h5">
                 <div>
-                    ${k(
+                    ${E(
     this._validationResult.messages,
     (t) => t.message,
-    (t) => r(this, o, R).call(this, t)
+    (t) => r(this, o, k).call(this, t)
   )}
                 </div>
             </uui-box>
@@ -146,14 +149,10 @@ V = function() {
                 <uui-box headline="Status" headline-variant="h5">
                     <p>No validation configured for this content type (${this._validationResult.contentTypeAlias}).</p>
                 </uui-box>
-            ` : a`
-                <uui-box headline="Status" headline-variant="h5">
-                    <p style="color: var(--uui-color-text-alt);">Ready to validate</p>
-                </uui-box>
             `;
 };
-R = function(t) {
-  const i = r(this, o, C).call(this, t.severity);
+k = function(t) {
+  const i = r(this, o, $).call(this, t.severity);
   return a`
             <p>
                 <uui-tag color=${i} look="primary">
@@ -166,14 +165,14 @@ R = function(t) {
             </p>
         `;
 };
-$ = function() {
+S = function() {
   return this._validationResult ? this._validationResult.messages.filter((t) => t.severity === "Error").length : 0;
 };
-S = function() {
+T = function() {
   return this._validationResult ? this._validationResult.messages.filter((t) => t.severity === "Warning").length : 0;
 };
-T = function() {
-  const t = r(this, o, $).call(this), i = r(this, o, S).call(this);
+W = function() {
+  const t = r(this, o, S).call(this), i = r(this, o, T).call(this);
   return a`
             <div slot="headline">
                 ${t > 0 ? a`
@@ -195,22 +194,22 @@ T = function() {
 };
 u.styles = [A];
 v([
-  p()
+  f()
 ], u.prototype, "_documentId", 2);
 v([
-  p()
+  f()
 ], u.prototype, "_validationResult", 2);
 v([
-  p()
+  f()
 ], u.prototype, "_isValidating", 2);
 v([
-  p()
+  f()
 ], u.prototype, "_error", 2);
 u = v([
-  E("my-validation-workspace-view")
+  M("my-validation-workspace-view")
 ], u);
 export {
   u as MyValidationWorkspaceView,
   u as element
 };
-//# sourceMappingURL=validation-view.element-c6e7wUeB.js.map
+//# sourceMappingURL=validation-view.element-4XC7lyQu.js.map
