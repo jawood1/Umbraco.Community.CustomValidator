@@ -1,21 +1,6 @@
-import { UMB_WORKSPACE_CONDITION_ALIAS as a, UMB_WORKSPACE_ENTITY_IS_NEW_CONDITION_ALIAS as e } from "@umbraco-cms/backoffice/workspace";
-import { umbExtensionsRegistry as i } from "@umbraco-cms/backoffice/extension-registry";
-const t = [
-  {
-    type: "workspaceContext",
-    alias: "My.WorkspaceContext.NameManipulation",
-    name: "Name Manipulation Workspace Context",
-    api: () => import("./workspace-context-DBTuSfbJ.js"),
-    conditions: [
-      {
-        alias: a,
-        match: "Umb.Workspace.Document"
-      },
-      {
-        alias: e
-      }
-    ]
-  },
+import { UMB_WORKSPACE_CONDITION_ALIAS as a } from "@umbraco-cms/backoffice/workspace";
+import { umbExtensionsRegistry as o } from "@umbraco-cms/backoffice/extension-registry";
+const e = [
   {
     type: "workspaceContext",
     alias: "My.WorkspaceContext.Validation",
@@ -32,12 +17,12 @@ const t = [
     type: "workspaceView",
     alias: "My.WorkspaceView.Validation",
     name: "Validation Workspace View",
-    element: () => import("./validation-view.element-DgBk1YLW.js"),
+    element: () => import("./validation-view.element-C6Y6WjaL.js"),
     weight: 1,
     meta: {
       label: "Validation",
       pathname: "validation",
-      icon: "icon-check"
+      icon: "icon-alert"
     },
     conditions: [
       {
@@ -46,11 +31,11 @@ const t = [
       }
     ]
   }
-], c = () => {
-  console.log("Registering name manipulation extension manifests"), t.forEach((o) => i.register(o));
+], s = () => {
+  console.log("Registering name manipulation extension manifests"), e.forEach((i) => o.register(i));
 };
 export {
-  t as manifests,
-  c as onInit
+  e as manifests,
+  s as onInit
 };
 //# sourceMappingURL=client.js.map

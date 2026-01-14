@@ -7,21 +7,6 @@ import { umbExtensionsRegistry } from "@umbraco-cms/backoffice/extension-registr
 export const manifests : Array<UmbExtensionManifest> = [
     {
         type: "workspaceContext",
-        alias: "My.WorkspaceContext.NameManipulation",
-        name: "Name Manipulation Workspace Context",
-        api: () => import("./name-manipulation/workspace-context.js"),
-        conditions: [
-            {
-                alias: UMB_WORKSPACE_CONDITION_ALIAS,
-                match: "Umb.Workspace.Document",
-            },
-            {
-                alias: UMB_WORKSPACE_ENTITY_IS_NEW_CONDITION_ALIAS,
-            }
-        ],
-    },
-    {
-        type: "workspaceContext",
         alias: "My.WorkspaceContext.Validation",
         name: "Validation Workspace Context",
         api: () => import("./validation/validation-workspace-context.js"),
@@ -41,7 +26,7 @@ export const manifests : Array<UmbExtensionManifest> = [
         meta: {
             label: "Validation",
             pathname: "validation",
-            icon: "icon-check",
+            icon: "icon-alert",
         },
         conditions: [
             {
