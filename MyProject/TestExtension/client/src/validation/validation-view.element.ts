@@ -2,6 +2,7 @@ import { customElement, state, html, nothing, repeat } from '@umbraco-cms/backof
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
+import { UMB_DOCUMENT_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/document";
 import type { UmbWorkspaceViewElement } from '@umbraco-cms/backoffice/workspace';
 import { VALIDATION_WORKSPACE_CONTEXT } from './validation-workspace-context.js';
 import type { ValidationResult, ValidationMessage } from './types.js';
@@ -20,8 +21,16 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
     @state()
     private _error?: string;
 
+    #documentWorkspace?: typeof UMB_DOCUMENT_WORKSPACE_CONTEXT.TYPE;
+
     constructor() {
         super();
+
+        this.consumeContext(UMB_DOCUMENT_WORKSPACE_CONTEXT, (workspace) => {
+            if (!workspace) return;
+            
+            this.#documentWorkspace = workspace;
+        });
 
         this.consumeContext(UMB_CONTENT_WORKSPACE_CONTEXT, (workspace) => {
             if (!workspace) return;
@@ -74,6 +83,33 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         }, 1000);
     }
 
+    override connectedCallback() {
+        super.connectedCallback();
+        
+        // Re-validate when tab becomes visible
+        if (this._documentId) {
+            this.#revalidateOnTabSwitch();
+        }
+    }
+
+    async #revalidateOnTabSwitch() {
+        if (!this._documentId) return;
+
+        const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
+        if (!validationContext) return;
+
+        // Request save to ensure latest content, then validate
+        try {
+            if (this.#documentWorkspace?.requestSubmit) {
+                await this.#documentWorkspace.requestSubmit();
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            await validationContext.validateManually(this._documentId);
+        } catch (error) {
+            console.debug('Auto-validation on tab switch skipped:', error);
+        }
+    }
+
     #handleValidateClick = async () => {
         if (!this._documentId) return;
 
@@ -83,6 +119,13 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         this._error = undefined;
 
         try {
+            // Request save to update preview content before validation
+            if (this.#documentWorkspace?.requestSubmit) {
+                await this.#documentWorkspace.requestSubmit();
+                // Small delay to allow content cache to update
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
             await validationContext.validateManually(this._documentId);
         } catch (error) {
             this._error = error instanceof Error ? error.message : 'Validation failed';
