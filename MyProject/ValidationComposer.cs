@@ -1,7 +1,7 @@
 using MyProject.Validation;
 using MyProject.Validation.Validators;
 using Umbraco.Cms.Core.Composing;
-using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Cms.Core.Notifications;
 
 namespace MyProject;
 
@@ -18,5 +18,8 @@ public class ValidationComposer : IComposer
         // Add more validators here as needed:
         // builder.Services.AddSingleton<IDocumentValidator, ArticleValidator>();
         // builder.Services.AddSingleton<IDocumentValidator, AuthorValidator>();
+
+        // Register notification handler to block publish on validation errors
+        builder.AddNotificationAsyncHandler<ContentPublishingNotification, ContentPublishingValidationHandler>();
     }
 }

@@ -3,13 +3,11 @@ import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
 import type { UmbWorkspaceViewElement } from '@umbraco-cms/backoffice/workspace';
-import { ValidationApiService } from './validation-api.service.js';
+import { VALIDATION_WORKSPACE_CONTEXT } from './validation-workspace-context.js';
 import type { ValidationResult, ValidationMessage } from './types.js';
 
 @customElement('my-validation-workspace-view')
 export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorkspaceViewElement {
-    #apiService = new ValidationApiService(this);
-
     @state()
     private _documentId?: string;
 
@@ -17,7 +15,7 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
     private _validationResult?: ValidationResult;
 
     @state()
-    private _isLoading = false;
+    private _isValidating = false;
 
     @state()
     private _error?: string;
@@ -32,23 +30,62 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                 workspace.unique,
                 (unique) => {
                     this._documentId = unique ?? undefined;
+                    
+                    // Auto-validate when document ID is available
+                    if (unique) {
+                        this.#autoValidateOnLoad(unique);
+                    }
+                }
+            );
+        });
+
+        this.consumeContext(VALIDATION_WORKSPACE_CONTEXT, (validationContext) => {
+            if (!validationContext) return;
+
+            this.observe(
+                validationContext.validationResult,
+                (result) => {
+                    this._validationResult = result;
+                }
+            );
+
+            this.observe(
+                validationContext.isValidating,
+                (isValidating) => {
+                    this._isValidating = isValidating;
                 }
             );
         });
     }
 
+    async #autoValidateOnLoad(documentId: string) {
+        // Auto-validate when component loads to show any blocking errors
+        const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
+        if (!validationContext) return;
+
+        // Small delay to ensure workspace is fully loaded
+        setTimeout(async () => {
+            try {
+                await validationContext.validateManually(documentId);
+            } catch (error) {
+                // Silent fail on auto-validation
+                console.debug('Auto-validation skipped:', error);
+            }
+        }, 1000);
+    }
+
     #handleValidateClick = async () => {
         if (!this._documentId) return;
 
-        this._isLoading = true;
+        const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
+        if (!validationContext) return;
+
         this._error = undefined;
 
         try {
-            this._validationResult = await this.#apiService.validateDocument(this._documentId);
+            await validationContext.validateManually(this._documentId);
         } catch (error) {
             this._error = error instanceof Error ? error.message : 'Validation failed';
-        } finally {
-            this._isLoading = false;
         }
     };
 
@@ -152,6 +189,7 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                     align-items: center;
                     gap: var(--uui-size-space-3);
                     padding: var(--uui-size-space-3);
+                    border-bottom: 1px solid var(--uui-color-border);
                 }
 
                 .validation-message:last-child {
@@ -167,12 +205,6 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                     font-size: 0.9em;
                 }
             </style>
-            <div class="container">${this.#renderContent()}</div>
-        `;
-    }
-
-    #renderContent() {
-        return html`
             <div class="container">
                 <uui-box>
                     <div slot="headline">Document Validation</div>
@@ -181,11 +213,11 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                             look="primary"
                             color="positive"
                             @click=${this.#handleValidateClick}
-                            ?disabled=${!this._documentId || this._isLoading}>
+                            ?disabled=${!this._documentId || this._isValidating}>
                             <uui-icon name="icon-check"></uui-icon>
                             Validate Document
                         </uui-button>
-                        ${this._isLoading ? html`<uui-loader></uui-loader>` : nothing}
+                        ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}
                     </div>
                 </uui-box>
 

@@ -29,7 +29,7 @@ public class HomePageValidator : BaseDocumentValidator<Home>
             messages.Add(new ValidationMessage
             {
                 Message = "Home page title should be at least 3 characters long",
-                Severity = ValidationSeverity.Warning,
+                Severity = ValidationSeverity.Error,
                 PropertyAlias = "name"
             });
         }

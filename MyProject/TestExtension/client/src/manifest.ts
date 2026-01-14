@@ -21,11 +21,23 @@ export const manifests : Array<UmbExtensionManifest> = [
         ],
     },
     {
+        type: "workspaceContext",
+        alias: "My.WorkspaceContext.Validation",
+        name: "Validation Workspace Context",
+        api: () => import("./validation/validation-workspace-context.js"),
+        conditions: [
+            {
+                alias: UMB_WORKSPACE_CONDITION_ALIAS,
+                match: "Umb.Workspace.Document",
+            }
+        ],
+    },
+    {
         type: "workspaceView",
         alias: "My.WorkspaceView.Validation",
         name: "Validation Workspace View",
         element: () => import("./validation/validation-view.element.js"),
-        weight: 900,
+        weight: 1,
         meta: {
             label: "Validation",
             pathname: "validation",
