@@ -172,7 +172,6 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             case 'warning':
                 return 'warning';
             case 'info':
-                return 'positive';
             default:
                 return 'default';
         }
@@ -295,11 +294,10 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                             <uui-button-group>
                                 <uui-button
                                     look="primary"
-                                    color="positive"
+                                    color="default"
                                     label="Validate Document"
                                     @click=${this.#handleValidateClick}
                                     ?disabled=${!this._documentId || this._isValidating}>
-                                    <uui-icon name="icon-check"></uui-icon>
                                     Validate Document
                                 </uui-button>
                                 ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}

@@ -2,12 +2,8 @@ using Umbraco.Cms.Web.Common.PublishedModels;
 
 namespace MyProject.Validation.Validators;
 
-public class HomePageValidator : BaseDocumentValidator<Home>
+public class HomePageValidator() : BaseDocumentValidator<Home>(Home.ModelTypeAlias)
 {
-    public HomePageValidator() : base(Home.ModelTypeAlias)
-    {
-    }
-
     public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Home content)
     {
         var messages = new List<ValidationMessage>();

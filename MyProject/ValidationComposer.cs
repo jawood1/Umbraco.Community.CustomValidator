@@ -14,7 +14,8 @@ public class ValidationComposer : IComposer
 
         // Register all validators
         builder.Services.AddSingleton<IDocumentValidator, HomePageValidator>();
-        
+        builder.Services.AddSingleton<IDocumentValidator, ContentPageValidator>();
+
         // Add more validators here as needed:
         // builder.Services.AddSingleton<IDocumentValidator, ArticleValidator>();
         // builder.Services.AddSingleton<IDocumentValidator, AuthorValidator>();

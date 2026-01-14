@@ -1,4 +1,4 @@
-import { nothing as h, html as a, repeat as E, state as f, customElement as M } from "@umbraco-cms/backoffice/external/lit";
+import { nothing as h, html as a, repeat as E, state as _, customElement as M } from "@umbraco-cms/backoffice/external/lit";
 import { UmbLitElement as O } from "@umbraco-cms/backoffice/lit-element";
 import { UmbTextStyles as A } from "@umbraco-cms/backoffice/style";
 import { UMB_CONTENT_WORKSPACE_CONTEXT as D } from "@umbraco-cms/backoffice/content";
@@ -9,11 +9,11 @@ var P = Object.defineProperty, N = Object.getOwnPropertyDescriptor, x = (t) => {
   for (var s = n > 1 ? void 0 : n ? N(i, e) : i, m = t.length - 1, g; m >= 0; m--)
     (g = t[m]) && (s = (n ? g(i, e, s) : g(s)) || s);
   return n && s && P(i, e, s), s;
-}, b = (t, i, e) => i.has(t) || x("Cannot " + e), d = (t, i, e) => (b(t, i, "read from private field"), i.get(t)), p = (t, i, e) => i.has(t) ? x("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(t) : i.set(t, e), V = (t, i, e, n) => (b(t, i, "write to private field"), i.set(t, e), e), r = (t, i, e) => (b(t, i, "access private method"), e), l, _, o, C, R, w, $, I, k, S, T, W;
+}, b = (t, i, e) => i.has(t) || x("Cannot " + e), d = (t, i, e) => (b(t, i, "read from private field"), i.get(t)), f = (t, i, e) => i.has(t) ? x("Cannot add the same private member more than once") : i instanceof WeakSet ? i.add(t) : i.set(t, e), V = (t, i, e, n) => (b(t, i, "write to private field"), i.set(t, e), e), r = (t, i, e) => (b(t, i, "access private method"), e), l, p, o, C, R, w, $, I, S, k, T, W;
 const y = /* @__PURE__ */ new Map();
 let u = class extends O {
   constructor() {
-    super(), p(this, o), this._isValidating = !1, p(this, l), p(this, _), p(this, w, async () => {
+    super(), f(this, o), this._isValidating = !1, f(this, l), f(this, p), f(this, w, async () => {
       if (!this._documentId) return;
       const t = await this.getContext(c);
       if (t && (this._error = void 0, this._validationResult?.hasValidator !== !1))
@@ -26,8 +26,8 @@ let u = class extends O {
       t && (V(this, l, t), this.observe(
         t.unique,
         async (i) => {
-          const e = d(this, _);
-          this._documentId = i ?? void 0, V(this, _, i ?? void 0);
+          const e = d(this, p);
+          this._documentId = i ?? void 0, V(this, p, i ?? void 0);
           const n = await this.getContext(c);
           n && n.clearValidation(), e !== void 0 && e !== i && i && y.delete(i);
         }
@@ -61,11 +61,10 @@ let u = class extends O {
                             <uui-button-group>
                                 <uui-button
                                     look="primary"
-                                    color="positive"
+                                    color="default"
                                     label="Validate Document"
                                     @click=${d(this, w)}
                                     ?disabled=${!this._documentId || this._isValidating}>
-                                    <uui-icon name="icon-check"></uui-icon>
                                     Validate Document
                                 </uui-button>
                                 ${this._isValidating ? a`<uui-loader></uui-loader>` : h}
@@ -80,7 +79,7 @@ let u = class extends O {
   }
 };
 l = /* @__PURE__ */ new WeakMap();
-_ = /* @__PURE__ */ new WeakMap();
+p = /* @__PURE__ */ new WeakMap();
 o = /* @__PURE__ */ new WeakSet();
 C = async function() {
   if (!this._documentId) return;
@@ -110,8 +109,6 @@ $ = function(t) {
       return "danger";
     case "warning":
       return "warning";
-    case "info":
-      return "positive";
     default:
       return "default";
   }
@@ -141,7 +138,7 @@ I = function() {
                     ${E(
     this._validationResult.messages,
     (t) => t.message,
-    (t) => r(this, o, k).call(this, t)
+    (t) => r(this, o, S).call(this, t)
   )}
                 </div>
             </uui-box>
@@ -151,7 +148,7 @@ I = function() {
                 </uui-box>
             `;
 };
-k = function(t) {
+S = function(t) {
   const i = r(this, o, $).call(this, t.severity);
   return a`
             <p>
@@ -165,14 +162,14 @@ k = function(t) {
             </p>
         `;
 };
-S = function() {
+k = function() {
   return this._validationResult ? this._validationResult.messages.filter((t) => t.severity === "Error").length : 0;
 };
 T = function() {
   return this._validationResult ? this._validationResult.messages.filter((t) => t.severity === "Warning").length : 0;
 };
 W = function() {
-  const t = r(this, o, S).call(this), i = r(this, o, T).call(this);
+  const t = r(this, o, k).call(this), i = r(this, o, T).call(this);
   return a`
             <div slot="headline">
                 ${t > 0 ? a`
@@ -194,16 +191,16 @@ W = function() {
 };
 u.styles = [A];
 v([
-  f()
+  _()
 ], u.prototype, "_documentId", 2);
 v([
-  f()
+  _()
 ], u.prototype, "_validationResult", 2);
 v([
-  f()
+  _()
 ], u.prototype, "_isValidating", 2);
 v([
-  f()
+  _()
 ], u.prototype, "_error", 2);
 u = v([
   M("my-validation-workspace-view")
@@ -212,4 +209,4 @@ export {
   u as MyValidationWorkspaceView,
   u as element
 };
-//# sourceMappingURL=validation-view.element-4XC7lyQu.js.map
+//# sourceMappingURL=validation-view.element-_zp1lZpc.js.map

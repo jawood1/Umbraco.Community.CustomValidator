@@ -2,14 +2,10 @@ using Umbraco.Cms.Core.Models.PublishedContent;
 
 namespace MyProject.Validation;
 
-public abstract class BaseDocumentValidator<T> : IDocumentValidator<T>, IDocumentValidator where T : IPublishedContent
+public abstract class BaseDocumentValidator<T>(string contentTypeAlias) : IDocumentValidator<T>, IDocumentValidator
+    where T : IPublishedContent
 {
-    public string ContentTypeAlias { get; }
-
-    protected BaseDocumentValidator(string contentTypeAlias)
-    {
-        ContentTypeAlias = contentTypeAlias;
-    }
+    public string ContentTypeAlias { get; } = contentTypeAlias;
 
     public abstract Task<IEnumerable<ValidationMessage>> ValidateAsync(T content);
 
