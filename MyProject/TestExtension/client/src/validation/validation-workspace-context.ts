@@ -23,11 +23,11 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
         this.provideContext(VALIDATION_WORKSPACE_CONTEXT, this);
     }
 
-    async validateManually(documentId: string) {
+    async validateManually(documentId: string, culture?: string) {
         this.#isValidating.setValue(true);
 
         try {
-            const result = await this.#apiService.validateDocument(documentId);
+            const result = await this.#apiService.validateDocument(documentId, culture);
             this.#validationResult.setValue(result);
             return result;
         } catch (error) {

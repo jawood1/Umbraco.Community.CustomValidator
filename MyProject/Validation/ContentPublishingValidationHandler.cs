@@ -39,26 +39,16 @@ public class ContentPublishingValidationHandler : INotificationAsyncHandler<Cont
 
             // Run validation
             var validationMessages = await _validationService.ValidateAsync(publishedContent);
-            var errors = validationMessages.Where(m => m.Severity == ValidationSeverity.Error).ToList();
+            var errors = validationMessages.Count(m => m.Severity == ValidationSeverity.Error);
 
-            if (errors.Any())
+            if (errors > 0)
             {
                 // Cancel the publish operation
                 notification.CancelOperation(new EventMessage(
                     "Validation Failed",
-                    $"Cannot publish '{entity.Name}': {errors.Count} validation error(s) found.",
+                    $"Cannot publish: {errors} validation error(s) found.",
                     EventMessageType.Error
                 ));
-
-                // Add individual error messages
-                foreach (var error in errors)
-                {
-                    notification.Messages.Add(new EventMessage(
-                        "Validation Error",
-                        error.Message,
-                        EventMessageType.Error
-                    ));
-                }
             }
         }
     }

@@ -5,7 +5,7 @@ const e = [
     type: "workspaceContext",
     alias: "My.WorkspaceContext.Validation",
     name: "Validation Workspace Context",
-    api: () => import("./validation-workspace-context-Dzg7J8I0.js"),
+    api: () => import("./validation-workspace-context-BRYHx8XG.js"),
     conditions: [
       {
         alias: a,
@@ -17,7 +17,7 @@ const e = [
     type: "workspaceView",
     alias: "My.WorkspaceView.Validation",
     name: "Validation Workspace View",
-    element: () => import("./validation-view.element-_zp1lZpc.js"),
+    element: () => import("./validation-view.element-DSUyk-FA.js"),
     weight: 1,
     meta: {
       label: "Validation",

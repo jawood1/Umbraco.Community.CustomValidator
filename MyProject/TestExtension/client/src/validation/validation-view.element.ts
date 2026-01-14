@@ -2,6 +2,7 @@ import { customElement, state, html, nothing, repeat } from '@umbraco-cms/backof
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
+import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { UmbWorkspaceViewElement } from '@umbraco-cms/backoffice/workspace';
 import { VALIDATION_WORKSPACE_CONTEXT } from './validation-workspace-context.js';
 import type { ValidationResult, ValidationMessage } from './types.js';
@@ -21,7 +22,7 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
     private _isValidating = false;
 
     @state()
-    private _error?: string;
+    private _currentCulture?: string;
 
     #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
     #currentDocumentId?: string;
@@ -33,6 +34,19 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             if (!workspace) return;
 
             this.#contentWorkspace = workspace;
+
+            // Observe the active variant to track culture
+            this.observe(
+                workspace.splitView.activeVariantsInfo,
+                (variants) => {
+                    if (variants && variants.length > 0) {
+                        const activeVariant = variants[0];
+                        this._currentCulture = activeVariant.culture ?? undefined;
+                    } else {
+                        this._currentCulture = undefined;
+                    }
+                }
+            );
 
             this.observe(
                 workspace.unique,
@@ -108,7 +122,7 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         // Small delay to ensure workspace is fully loaded
         setTimeout(async () => {
             try {
-                await validationContext.validateManually(this._documentId!);
+                await validationContext.validateManually(this._documentId!, this._currentCulture);
             } catch (error) {
                 console.debug('Validation skipped:', error);
             }
@@ -126,13 +140,10 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             return;
         }
 
-        // Request save to ensure latest content, then validate
+        // On tab switch, just validate current state without saving
+        // This avoids triggering save modals for language selection
         try {
-            if (this.#contentWorkspace?.requestSubmit) {
-                await this.#contentWorkspace.requestSubmit();
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-            await validationContext.validateManually(this._documentId);
+            await validationContext.validateManually(this._documentId, this._currentCulture);
         } catch (error) {
             console.debug('Auto-validation on tab switch skipped:', error);
         }
@@ -143,8 +154,6 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
 
         const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
         if (!validationContext) return;
-
-        this._error = undefined;
 
         // Skip validation entirely if we already know there's no validator
         if (this._validationResult?.hasValidator === false) {
@@ -159,9 +168,56 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
             
-            await validationContext.validateManually(this._documentId);
+            await validationContext.validateManually(this._documentId, this._currentCulture);
         } catch (error) {
-            this._error = error instanceof Error ? error.message : 'Validation failed';
+            // Silently handle validation errors
+        }
+    };
+
+    #handleSaveAndPublishClick = async () => {
+        if (!this._documentId) return;
+
+        const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
+        if (!validationContext) return;
+
+        const notificationContext = await this.getContext(UMB_NOTIFICATION_CONTEXT);
+
+        // Skip if no validator
+        if (this._validationResult?.hasValidator === false) {
+            return;
+        }
+
+        try {
+            // Save and validate first
+            if (this.#contentWorkspace?.requestSubmit) {
+                await this.#contentWorkspace.requestSubmit();
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            await validationContext.validateManually(this._documentId, this._currentCulture);
+
+            // Check if there are blocking errors
+            if (validationContext.hasBlockingErrors()) {
+                notificationContext?.peek('danger', {
+                    data: {
+                        headline: 'Cannot Publish',
+                        message: 'Validation errors must be resolved first'
+                    }
+                });
+                return;
+            }
+
+            // Publish if no errors
+            if (this.#contentWorkspace && 'publish' in this.#contentWorkspace && typeof this.#contentWorkspace.publish === 'function') {
+                await this.#contentWorkspace.publish();
+            }
+        } catch (error) {
+            notificationContext?.peek('danger', {
+                data: {
+                    headline: 'Error',
+                    message: error instanceof Error ? error.message : 'Save and publish failed'
+                }
+            });
         }
     };
 
@@ -190,15 +246,6 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             `;
         }
 
-        // Error state
-        if (this._error) {
-            return html`
-                <uui-box headline="Status" headline-variant="h5">
-                    <p><strong style="color: var(--uui-color-danger);">${this._error}</strong></p>
-                </uui-box>
-            `;
-        }
-
         // No validator configured
         if (!this._validationResult.hasValidator) {
             return html`
@@ -208,24 +255,29 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             `;
         }
 
-        // Validation passed
-        if (this._validationResult.messages.length === 0) {
-            return html`
-                <uui-box headline="Validation Results" headline-variant="h5">
+        // Validation messages - sorted by severity (Error > Warning > Info)
+        const sortedMessages = [...this._validationResult.messages].sort((a, b) => {
+            const severityOrder = { 'Error': 0, 'Warning': 1, 'Info': 2 };
+            return (severityOrder[a.severity as keyof typeof severityOrder] ?? 3) - 
+                   (severityOrder[b.severity as keyof typeof severityOrder] ?? 3);
+        });
+
+        // Check if there are only info messages (no errors or warnings)
+        const hasErrorsOrWarnings = this._validationResult.messages.some(
+            m => m.severity === 'Error' || m.severity === 'Warning'
+        );
+
+        return html`
+            <uui-box headline="Validation Results" headline-variant="h5">
+                ${!hasErrorsOrWarnings ? html`
                     <p style="color: var(--uui-color-positive);">
                         <uui-icon name="icon-check"></uui-icon>
                         All validations passed successfully.
                     </p>
-                </uui-box>
-            `;
-        }
-
-        // Validation messages
-        return html`
-            <uui-box headline="Validation Results" headline-variant="h5">
+                ` : nothing}
                 <div>
                     ${repeat(
-                        this._validationResult.messages,
+                        sortedMessages,
                         (msg) => msg.message,
                         (msg) => this.#renderValidationMessage(msg)
                     )}
@@ -243,9 +295,6 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                     ${msg.severity}
                 </uui-tag>
                 ${msg.message}
-                ${msg.propertyAlias ? html`
-                    <span style="color: var(--uui-color-text-alt);">(${msg.propertyAlias})</span>
-                ` : nothing}
             </p>
         `;
     }
@@ -295,10 +344,18 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
                                 <uui-button
                                     look="primary"
                                     color="default"
-                                    label="Validate Document"
+                                    label="Save & Validate"
                                     @click=${this.#handleValidateClick}
                                     ?disabled=${!this._documentId || this._isValidating}>
-                                    Validate Document
+                                    Save & Validate
+                                </uui-button>
+                                <uui-button
+                                    look="primary"
+                                    color="positive"
+                                    label="Validate & Publish"
+                                    @click=${this.#handleSaveAndPublishClick}
+                                    ?disabled=${!this._documentId || this._isValidating}>
+                                    Validate & Publish
                                 </uui-button>
                                 ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}
                             </uui-button-group>

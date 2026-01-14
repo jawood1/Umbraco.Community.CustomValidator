@@ -6,7 +6,6 @@ public class ValidationMessage
 {
     public required string Message { get; set; }
     public ValidationSeverity Severity { get; set; }
-    public string? PropertyAlias { get; set; }
 }
 
 public enum ValidationSeverity

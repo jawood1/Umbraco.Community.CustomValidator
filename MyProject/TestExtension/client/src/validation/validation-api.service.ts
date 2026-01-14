@@ -8,11 +8,16 @@ export class ValidationApiService extends UmbControllerBase {
         super(host);
     }
 
-    async validateDocument(id: string): Promise<ValidationResult> {
+    async validateDocument(id: string, culture?: string): Promise<ValidationResult> {
         const authContext = await this.getContext(UMB_AUTH_CONTEXT);
         const token = await authContext?.getLatestToken();
 
-        const response = await fetch(`/umbraco/management/api/v1/validation/validate/${id}`, {
+        const url = new URL(`/umbraco/management/api/v1/validation/validate/${id}`, window.location.origin);
+        if (culture) {
+            url.searchParams.append('culture', culture);
+        }
+
+        const response = await fetch(url.toString(), {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,

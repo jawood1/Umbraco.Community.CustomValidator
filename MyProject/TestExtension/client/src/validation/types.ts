@@ -1,7 +1,6 @@
 export interface ValidationMessage {
     message: string;
     severity: string;
-    propertyAlias: string | null;
 }
 
 export interface ValidationResult {

@@ -14,8 +14,7 @@ public class ContentPageValidator() : BaseDocumentValidator<Content>(Content.Mod
             messages.Add(new ValidationMessage
             {
                 Message = "Home page title cannot be empty",
-                Severity = ValidationSeverity.Error,
-                PropertyAlias = "name"
+                Severity = ValidationSeverity.Error
             });
         }
 
@@ -24,8 +23,7 @@ public class ContentPageValidator() : BaseDocumentValidator<Content>(Content.Mod
             messages.Add(new ValidationMessage
             {
                 Message = "Title can't be short",
-                Severity = ValidationSeverity.Warning,
-                PropertyAlias = "name"
+                Severity = ValidationSeverity.Warning
             });
         }
 

@@ -14,8 +14,16 @@ public class HomePageValidator() : BaseDocumentValidator<Home>(Home.ModelTypeAli
             messages.Add(new ValidationMessage
             {
                 Message = "Home page title cannot be empty",
-                Severity = ValidationSeverity.Error,
-                PropertyAlias = "name"
+                Severity = ValidationSeverity.Error
+            });
+        }
+
+        if (content.MainImage?.Content is not Image { AltText.Length: > 0 })
+        {
+            messages.Add(new ValidationMessage
+            {
+                Message = "Main Image: no alt text",
+                Severity = ValidationSeverity.Warning
             });
         }
 
@@ -25,8 +33,7 @@ public class HomePageValidator() : BaseDocumentValidator<Home>(Home.ModelTypeAli
             messages.Add(new ValidationMessage
             {
                 Message = "Home page title should be at least 3 characters long",
-                Severity = ValidationSeverity.Error,
-                PropertyAlias = "name"
+                Severity = ValidationSeverity.Error
             });
         }
 
