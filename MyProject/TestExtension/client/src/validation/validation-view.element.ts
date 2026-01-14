@@ -10,8 +10,13 @@ import type { ValidationResult, ValidationMessage } from './types.js';
 // Module-level map to track which documents have been validated
 const validatedDocuments = new Map<string, boolean>();
 
+// Track instance registration order for split view detection
+let instanceCounter = 0;
+const instanceResetTimer: any = null;
+
 @customElement('my-validation-workspace-view')
 export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorkspaceViewElement {
+    #instanceId: number;
     @state()
     private _documentId?: string;
 
@@ -29,19 +34,40 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
 
     constructor() {
         super();
+        
+        // Assign unique instance ID for split view detection
+        this.#instanceId = instanceCounter++;
+        // Reset counter after a delay (new document or view changes)
+        setTimeout(() => { if (instanceCounter > 1) instanceCounter = 0; }, 2000);
 
         this.consumeContext(UMB_CONTENT_WORKSPACE_CONTEXT, (workspace) => {
             if (!workspace) return;
 
             this.#contentWorkspace = workspace;
 
-            // Observe the active variant to track culture
+            // Observe the active variant to track culture for this specific split view
             this.observe(
                 workspace.splitView.activeVariantsInfo,
-                (variants) => {
+                async (variants) => {
                     if (variants && variants.length > 0) {
-                        const activeVariant = variants[0];
-                        this._currentCulture = activeVariant.culture ?? undefined;
+                        // Use instance ID to determine which variant this view represents
+                        // In split view: instance 0 = variant 0, instance 1 = variant 1
+                        // In single view: always use first variant
+                        const variantIndex = variants.length > 1 ? Math.min(this.#instanceId, variants.length - 1) : 0;
+                        const variant = variants[variantIndex];
+                        
+                        const newCulture = variant?.culture ?? undefined;
+                        
+                        // Only update if culture actually changed
+                        if (this._currentCulture !== newCulture) {
+                            this._currentCulture = newCulture;
+                            
+                            // Load cached validation result for this culture
+                            const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
+                            if (validationContext) {
+                                this._validationResult = validationContext.getValidationResult(this._currentCulture);
+                            }
+                        }
                     } else {
                         this._currentCulture = undefined;
                     }
@@ -73,13 +99,6 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
 
         this.consumeContext(VALIDATION_WORKSPACE_CONTEXT, (validationContext) => {
             if (!validationContext) return;
-
-            this.observe(
-                validationContext.validationResult,
-                (result) => {
-                    this._validationResult = result;
-                }
-            );
 
             this.observe(
                 validationContext.isValidating,
@@ -123,6 +142,8 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         setTimeout(async () => {
             try {
                 await validationContext.validateManually(this._documentId!, this._currentCulture);
+                // Update view with result for this culture
+                this._validationResult = validationContext.getValidationResult(this._currentCulture);
             } catch (error) {
                 console.debug('Validation skipped:', error);
             }
@@ -144,6 +165,8 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
         // This avoids triggering save modals for language selection
         try {
             await validationContext.validateManually(this._documentId, this._currentCulture);
+            // Update view with result for this culture
+            this._validationResult = validationContext.getValidationResult(this._currentCulture);
         } catch (error) {
             console.debug('Auto-validation on tab switch skipped:', error);
         }
@@ -169,6 +192,8 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             }
             
             await validationContext.validateManually(this._documentId, this._currentCulture);
+            // Update view with result for this culture
+            this._validationResult = validationContext.getValidationResult(this._currentCulture);
         } catch (error) {
             // Silently handle validation errors
         }
@@ -195,9 +220,11 @@ export class MyValidationWorkspaceView extends UmbLitElement implements UmbWorks
             }
             
             await validationContext.validateManually(this._documentId, this._currentCulture);
+            // Update view with result for this culture
+            this._validationResult = validationContext.getValidationResult(this._currentCulture);
 
-            // Check if there are blocking errors
-            if (validationContext.hasBlockingErrors()) {
+            // Check if there are blocking errors for this culture
+            if (validationContext.hasBlockingErrors(this._currentCulture)) {
                 notificationContext?.peek('danger', {
                     data: {
                         headline: 'Cannot Publish',

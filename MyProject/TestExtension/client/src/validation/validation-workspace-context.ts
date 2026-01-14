@@ -11,10 +11,9 @@ export const VALIDATION_WORKSPACE_CONTEXT = new UmbContextToken<ValidationWorksp
 
 export class ValidationWorkspaceContext extends UmbControllerBase {
     #apiService = new ValidationApiService(this);
-    #validationResult = new UmbObjectState<ValidationResult | undefined>(undefined);
+    #validationResults = new Map<string, ValidationResult>();
     #isValidating = new UmbObjectState<boolean>(false);
 
-    public readonly validationResult = this.#validationResult.asObservable();
     public readonly isValidating = this.#isValidating.asObservable();
 
     constructor(host: UmbControllerHost) {
@@ -28,7 +27,9 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
 
         try {
             const result = await this.#apiService.validateDocument(documentId, culture);
-            this.#validationResult.setValue(result);
+            // Store result per culture
+            const cultureKey = culture || 'default';
+            this.#validationResults.set(cultureKey, result);
             return result;
         } catch (error) {
             console.error('Manual validation failed:', error);
@@ -38,17 +39,25 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
         }
     }
 
-    getLastValidationResult(): ValidationResult | undefined {
-        return this.#validationResult.getValue();
+    getValidationResult(culture?: string): ValidationResult | undefined {
+        const cultureKey = culture || 'default';
+        return this.#validationResults.get(cultureKey);
     }
 
-    hasBlockingErrors(): boolean {
-        const result = this.#validationResult.getValue();
+    getLastValidationResult(): ValidationResult | undefined {
+        // Return any available result
+        return Array.from(this.#validationResults.values())[0];
+    }
+
+    hasBlockingErrors(culture?: string): boolean {
+        const cultureKey = culture || 'default';
+        const result = this.#validationResults.get(cultureKey);
         if (!result) return false;
         return result.messages.some(m => m.severity === 'Error');
     }
 
     clearValidation() {
+        this.#validationResults.clear();
         this.#validationResult.setValue(undefined);
     }
 }
