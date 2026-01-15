@@ -1,12 +1,12 @@
 {
     "$schema": "../../umbraco-package-schema.json",
-    "name": "Name Manipulation Extension",
+    "name": "Umbraco Community Custom Validator",
     "version": "0.1.0",
     "extensions": [
         {
             "type": "backofficeEntryPoint",
-            "alias": "My.EntryPoint.NameManipulation",
-            "name": "Name Manipulation Entry Point",
+            "alias": "Our.EntryPoint.CustomValidator",
+            "name": "Custom Validator Entry Point",
             "js": "/App_Plugins/client/client.js"
         }
     ]
