@@ -64,7 +64,7 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        builder.AddValidator<ArticleValidator>();
+        builder.AddDocumentValidator<ArticleValidator>();
     }
 }
 ```
@@ -97,4 +97,4 @@ Full documentation, examples, and advanced usage guides available at:
 
 ## License
 
-MIT License - Built for the Umbraco community with ❤️
+MIT License - Built for the Umbraco Community

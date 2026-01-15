@@ -99,9 +99,17 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        builder.AddValidator<ArticleValidator>();
+        builder.AddDocumentValidator<ArticleValidator>();
     }
 }
+```
+
+Or directly from the service collection:
+```csharp
+using Umbraco.Cms.Core.Composing;
+using Umbraco.Community.CustomValidator.Extensions;
+
+builder.Services.AddDocumentValidator<ArticleValidator>();
 ```
 
 ### 3. Use the Validation Tab
@@ -214,4 +222,5 @@ This project is licensed under the MIT License - see the [LICENSE](../LICENSE) f
 
 ## Acknowledgments
 
-Built for the Umbraco community with ❤️
+- [Lottie Pitcher (Opinionated Package Starter)](https://github.com/LottePitcher/opinionated-package-starter)
+- [Niels Lyngsø (24days.in)](https://24days.in/umbraco-cms/2025/backoffice-communication/)

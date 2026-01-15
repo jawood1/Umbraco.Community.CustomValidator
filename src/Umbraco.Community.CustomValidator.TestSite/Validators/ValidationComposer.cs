@@ -7,7 +7,7 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        builder.AddValidator<HomePageValidator>();
-        builder.AddValidator<ContentPageValidator>();
+        builder.AddDocumentValidator<HomePageValidator>();
+        builder.AddDocumentValidator<ContentPageValidator>();
     }
 }
