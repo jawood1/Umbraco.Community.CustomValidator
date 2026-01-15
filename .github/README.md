@@ -12,7 +12,7 @@ A document type validation framework for Umbraco CMS that provides real-time con
 - 🌍 **Multi-Culture Support** - Validate content for specific cultures in split-view mode
 - 🚫 **Publish Prevention** - Automatically blocks publishing when validation errors exist
 - 📊 **Severity Levels** - Categorize validation messages as Error, Warning, or Info
-- 🎨 **Beautiful UI** - Dedicated validation tab in the content workspace with color-coded messages
+- 🎨 **Validation Tab** - Dedicated validation tab in the content workspace with color-coded messages
 - 🔧 **Easy to Extend** - Simple base class for creating custom validators
 - 📝 **Type-Safe** - Built with strongly-typed models and enums
 

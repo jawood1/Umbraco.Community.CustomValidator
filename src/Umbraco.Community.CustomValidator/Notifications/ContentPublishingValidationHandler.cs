@@ -8,7 +8,7 @@ using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Notifications;
 
-public class ContentPublishingValidationHandler(
+internal sealed class ContentPublishingValidationHandler(
     DocumentValidationService validationService,
     IUmbracoContextAccessor umbracoContextAccessor,
     IVariationContextAccessor variationContextAccessor)

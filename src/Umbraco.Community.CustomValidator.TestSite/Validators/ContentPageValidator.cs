@@ -16,7 +16,7 @@ public class ContentPageValidator() : BaseDocumentValidator<Content>(Content.Mod
         {
             messages.Add(new ValidationMessage
             {
-                Message = "Home page title cannot be empty",
+                Message = "Title cannot be empty",
                 Severity = ValidationSeverity.Error
             });
         }

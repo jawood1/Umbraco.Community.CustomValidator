@@ -7,7 +7,7 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Composer;
 
-public class ValidationComposer : IComposer
+internal sealed class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
