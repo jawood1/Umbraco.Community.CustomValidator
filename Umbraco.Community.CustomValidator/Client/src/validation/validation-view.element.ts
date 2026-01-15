@@ -5,7 +5,8 @@ import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
 import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { UmbWorkspaceViewElement } from '@umbraco-cms/backoffice/workspace';
 import { VALIDATION_WORKSPACE_CONTEXT } from './validation-workspace-context.js';
-import type { ValidationResult, ValidationMessage, ValidationSeverity, NotificationColor } from './types.js';
+import type { ValidationResult, ValidationMessage, NotificationColor } from './types.js';
+import { ValidationSeverity } from './types.js';
 
 // Typed constants for delays
 const SAVE_DELAY_MS = 500;
@@ -14,16 +15,16 @@ const INSTANCE_RESET_DELAY_MS = 2000;
 
 // Type-safe severity order for sorting
 const SEVERITY_ORDER: Record<ValidationSeverity, number> = {
-    Error: 0,
-    Warning: 1,
-    Info: 2
+    [ValidationSeverity.Error]: 0,
+    [ValidationSeverity.Warning]: 1,
+    [ValidationSeverity.Info]: 2
 } as const;
 
 // Type-safe severity to color mapping
 const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
-    Error: 'danger',
-    Warning: 'warning',
-    Info: 'default'
+    [ValidationSeverity.Error]: 'danger',
+    [ValidationSeverity.Warning]: 'warning',
+    [ValidationSeverity.Info]: 'default'
 } as const;
 
 // Module-level map to track which documents have been validated
@@ -277,14 +278,14 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
             return { errors: 0, warnings: 0 };
         }
         return {
-            errors: this._validationResult.messages.filter(m => m.severity === 'Error').length,
-            warnings: this._validationResult.messages.filter(m => m.severity === 'Warning').length
+            errors: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Error).length,
+            warnings: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Warning).length
         };
     }
 
     #hasErrorsOrWarnings(): boolean {
         return this._validationResult?.messages.some(
-            m => m.severity === 'Error' || m.severity === 'Warning'
+            m => m.severity === ValidationSeverity.Error || m.severity === ValidationSeverity.Warning
         ) ?? false;
     }
 

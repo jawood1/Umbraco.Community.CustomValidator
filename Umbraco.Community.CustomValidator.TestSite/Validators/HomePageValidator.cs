@@ -1,4 +1,6 @@
 using Umbraco.Cms.Web.Common.PublishedModels;
+using Umbraco.Community.CustomValidator.Enums;
+using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.TestSite.Validators;

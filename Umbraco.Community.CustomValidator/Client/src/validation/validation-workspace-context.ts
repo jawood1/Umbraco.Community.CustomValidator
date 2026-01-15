@@ -2,6 +2,7 @@ import { UmbControllerBase } from '@umbraco-cms/backoffice/class-api';
 import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
 import { ValidationApiService } from './validation-api.service.js';
 import type { ValidationResult } from './types.js';
+import { ValidationSeverity } from './types.js';
 import { UmbContextToken } from '@umbraco-cms/backoffice/context-api';
 import { UmbObjectState } from '@umbraco-cms/backoffice/observable-api';
 
@@ -53,7 +54,7 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
         const cultureKey = culture || 'default';
         const result = this.#validationResults.get(cultureKey);
         if (!result) return false;
-        return result.messages.some(m => m.severity === 'Error');
+        return result.messages.some(m => m.severity === ValidationSeverity.Error);
     }
 
     clearValidation() {

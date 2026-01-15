@@ -4,6 +4,7 @@ using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Validation;
 using Umbraco.Extensions;
 
@@ -11,7 +12,7 @@ namespace Umbraco.Community.CustomValidator.Controllers;
 
 [VersionedApiBackOfficeRoute("validation")]
 [ApiExplorerSettings(GroupName = "Document Validation API")]
-public class DocumentValidationController(
+public sealed class DocumentValidationController(
     DocumentValidationService validationService,
     IUmbracoContextAccessor umbracoContextAccessor,
     IVariationContextAccessor variationContextAccessor,
@@ -38,17 +39,12 @@ public class DocumentValidationController(
 
         var validationMessages = await validationService.ValidateAsync(content);
 
-        return Ok(new
+        return Ok(new ValidationResponse
         {
-            contentId = id,
-            contentTypeAlias = content.ContentType.Alias,
-            culture = currentCulture,
-            hasValidator = validationService.HasValidator(content.ContentType.Alias),
-            messages = validationMessages.Select(m => new
-            {
-                message = m.Message,
-                severity = m.Severity.ToString()
-            })
+            ContentId = id,
+            ContentTypeAlias = content.ContentType.Alias,
+            HasValidator = validationService.HasValidator(content.ContentType.Alias),
+            Messages = validationMessages
         });
     }
 

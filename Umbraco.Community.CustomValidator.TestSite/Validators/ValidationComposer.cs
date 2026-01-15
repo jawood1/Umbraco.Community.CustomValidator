@@ -1,5 +1,5 @@
 using Umbraco.Cms.Core.Composing;
-using Umbraco.Community.CustomValidator.Validation;
+using Umbraco.Community.CustomValidator.Extensions;
 
 namespace Umbraco.Community.CustomValidator.TestSite.Validators;
 
@@ -7,8 +7,7 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        // Register all validators
-        builder.Services.AddSingleton<IDocumentValidator, HomePageValidator>();
-        builder.Services.AddSingleton<IDocumentValidator, ContentPageValidator>();
+        builder.AddValidator<HomePageValidator>();
+        builder.AddValidator<ContentPageValidator>();
     }
 }

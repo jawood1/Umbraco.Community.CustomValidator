@@ -2,6 +2,7 @@ using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Validation;
 using Umbraco.Extensions;
 
@@ -17,6 +18,8 @@ public class ContentPublishingValidationHandler(
 
     public async Task HandleAsync(ContentPublishingNotification notification, CancellationToken cancellationToken)
     {
+        var errorCount = 0;
+
         foreach (var entity in notification.PublishedEntities)
         {
             // Check if there's a validator for this content type
@@ -31,8 +34,6 @@ public class ContentPublishingValidationHandler(
             if(savingCultures is not { Count: > 0 })
                 continue;
 
-            var errorCount = 0;
-
             foreach (var culture in savingCultures)
             {
                 var publishedContent = _umbracoContext.Content?.GetById(true, entity.Id);
@@ -46,16 +47,16 @@ public class ContentPublishingValidationHandler(
                 var errors = validationMessages.Count(m => m.Severity == ValidationSeverity.Error);
                 errorCount += errors;
             }
+        }
 
-            if (errorCount > 0)
-            {
-                // Cancel the publish operation
-                notification.CancelOperation(new EventMessage(
-                    "Custom Validation Failed",
-                    $"Cannot publish: {errorCount} validation error(s) found on document.",
-                    EventMessageType.Error
-                ));
-            }
+        if (errorCount > 0)
+        {
+            // Cancel the publish operation
+            notification.CancelOperation(new EventMessage(
+                "Custom Validation Failed",
+                $"Cannot publish: {errorCount} validation error(s) found on document.",
+                EventMessageType.Error
+            ));
         }
     }
 }

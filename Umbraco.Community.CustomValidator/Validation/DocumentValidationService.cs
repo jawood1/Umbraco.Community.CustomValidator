@@ -1,8 +1,10 @@
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Community.CustomValidator.Interfaces;
+using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
-public class DocumentValidationService
+public sealed class DocumentValidationService
 {
     private readonly Dictionary<string, IDocumentValidator> _validators;
 

@@ -9,10 +9,6 @@
 
 @await Html.PartialAsync("~/Views/Partials/pageHeader.cshtml", new PageHeaderViewModel(Model.Name, Model.Title, Model.Subtitle, Model.MainImage))
 
-@* @await Component.InvokeAsync("RenderForm", new { formId = new Guid("3e5a1220-35da-4b7f-96e2-03ad4ec29b7c"),
-theme = "default",
-includeScripts = false }) *@
-
 @if (Model.ContentRows != null)
 {
     <article>

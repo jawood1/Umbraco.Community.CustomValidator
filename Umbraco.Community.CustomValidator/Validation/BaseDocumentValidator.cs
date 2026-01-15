@@ -1,11 +1,14 @@
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Community.CustomValidator.Enums;
+using Umbraco.Community.CustomValidator.Interfaces;
+using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
 public abstract class BaseDocumentValidator<T>(string contentTypeAlias) : IDocumentValidator<T>, IDocumentValidator
-    where T : IPublishedContent
+    where T : class, IPublishedContent
 {
-    public string ContentTypeAlias { get; } = contentTypeAlias;
+    public required string ContentTypeAlias { get; init; } = contentTypeAlias;
 
     public abstract Task<IEnumerable<ValidationMessage>> ValidateAsync(T content);
 
