@@ -23,7 +23,7 @@ public sealed class DocumentValidationController(
     public async Task<IActionResult> ValidateDocument(Guid id, [FromQuery] string? culture = null)
     {
         var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
-        var content = umbracoContext.Content?.GetById(preview: true, id);
+        var content = umbracoContext.Content.GetById(preview: true, id);
 
         if (content == null)
         {

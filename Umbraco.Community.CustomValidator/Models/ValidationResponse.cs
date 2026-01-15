@@ -1,6 +1,6 @@
 ﻿namespace Umbraco.Community.CustomValidator.Models;
 
-internal sealed class ValidationResponse
+internal sealed record ValidationResponse
 {
     public required Guid ContentId { get; set; }
 
