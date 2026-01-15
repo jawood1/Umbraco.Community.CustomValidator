@@ -1,0 +1,27 @@
+{
+    "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json", 
+    "AuthorDetails": {
+      "Name": "Jonathan Wood",
+      "Description": "Software developer",
+      "Url": "https://github.com/jawood1",
+      "ImageUrl": "https://github.com/jawood1.png",
+      "SyncContributorsFromRepository": true
+    },
+    "Category": "Editor Tools",
+    "Description": "A comprehensive document validation framework for Umbraco CMS that provides real-time content validation with a beautiful backoffice UI. Display validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.",
+    "DocumentationUrl": "https://github.com/jawood1/Umbraco.Community.CustomValidator#readme",
+    "LicenseTypes": [ "Free" ],
+    "IssueTrackerUrl": "https://github.com/jawood1/Umbraco.Community.CustomValidator/issues",
+    "PackageType": "Package",
+    "Tags": [
+      "validation",
+      "content-validation",
+      "editor-tools",
+      "backoffice",
+      "multi-culture",
+      "publish-prevention",
+      "content-quality"
+    ],
+    "Title": "Umbraco Community Custom Validator",
+    "VersionDependencyMode": "Default"
+  }
