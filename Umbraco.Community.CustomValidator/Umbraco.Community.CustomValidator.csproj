@@ -15,8 +15,8 @@
 		<PackageTags>umbraco;umbraco-marketplace</PackageTags>
 		<Authors>Jonathan Wood</Authors>
 		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Jonathan Wood</Copyright>
-		<PackageProjectUrl>https://github.com/YourGitHubUsername/YourGitHubRepoName</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/YourGitHubUsername/YourGitHubRepoName</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/jawood1/Umbraco.Community.CustomValidator</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/jawood1/Umbraco.Community.CustomValidator</RepositoryUrl>
 		<PackageReadmeFile>README_nuget.md</PackageReadmeFile>
 		<RepositoryType>git</RepositoryType>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
