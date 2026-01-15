@@ -58,7 +58,6 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
 
     clearValidation() {
         this.#validationResults.clear();
-        this.#validationResult.setValue(undefined);
     }
 }
 

@@ -1,6 +1,8 @@
 using Umbraco.Cms.Core.Events;
+using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Web;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace MyProject.Validation;
 
@@ -8,14 +10,18 @@ public class ContentPublishingValidationHandler : INotificationAsyncHandler<Cont
 {
     private readonly DocumentValidationService _validationService;
 
-    private readonly IUmbracoContextAccessor _umbracoContextAccessor;
+    private readonly IUmbracoContext _umbracoContext;
+
+    private readonly IVariationContextAccessor _variationContextAccessor;
 
     public ContentPublishingValidationHandler(
         DocumentValidationService validationService, 
-        IUmbracoContextAccessor umbracoContextAccessor)
+        IUmbracoContextAccessor umbracoContextAccessor, 
+        IVariationContextAccessor variationContextAccessor)
     {
         _validationService = validationService;
-        _umbracoContextAccessor = umbracoContextAccessor;
+        _variationContextAccessor = variationContextAccessor;
+        _umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
     }
 
     public async Task HandleAsync(ContentPublishingNotification notification, CancellationToken cancellationToken)
@@ -28,25 +34,34 @@ public class ContentPublishingValidationHandler : INotificationAsyncHandler<Cont
                 continue;
             }
 
-            // Get the preview/draft version of the content being published
-            var context = _umbracoContextAccessor.GetRequiredUmbracoContext();
-            var publishedContent = context.Content?.GetById(true, entity.Id);
+            var savingCultures = entity.AvailableCultures
+                .Where(culture => notification.IsPublishingCulture(entity, culture)).ToList();
 
-            if (publishedContent == null)
-            {
+            if(savingCultures is not { Count: > 0 })
                 continue;
+
+            var errorCount = 0;
+
+            foreach (var culture in savingCultures)
+            {
+                var publishedContent = _umbracoContext.Content?.GetById(true, entity.Id);
+
+                if (publishedContent == null)
+                    continue;
+
+                _variationContextAccessor.VariationContext = new VariationContext(culture);
+
+                var validationMessages = await _validationService.ValidateAsync(publishedContent);
+                var errors = validationMessages.Count(m => m.Severity == ValidationSeverity.Error);
+                errorCount += errors;
             }
 
-            // Run validation
-            var validationMessages = await _validationService.ValidateAsync(publishedContent);
-            var errors = validationMessages.Count(m => m.Severity == ValidationSeverity.Error);
-
-            if (errors > 0)
+            if (errorCount > 0)
             {
                 // Cancel the publish operation
                 notification.CancelOperation(new EventMessage(
-                    "Validation Failed",
-                    $"Cannot publish: {errors} validation error(s) found.",
+                    "Custom Validation Failed",
+                    $"Cannot publish: {errorCount} validation error(s) found on document.",
                     EventMessageType.Error
                 ));
             }
