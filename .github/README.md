@@ -149,14 +149,14 @@ Inject services into your validator constructor:
 public class ArticleValidator : BaseDocumentValidator<Article>
 {
     private readonly IMediaService _mediaService;
-    private readonly IContentService _contentService;
+    private readonly IApiService _apiService;
 
     public ArticleValidator(
         IMediaService mediaService,
-        IContentService contentService) : base(Article.ModelTypeAlias)
+        IApiService apiService) : base(Article.ModelTypeAlias)
     {
         _mediaService = mediaService;
-        _contentService = contentService;
+        _apiService = apiService;
     }
 
     public override async Task<IEnumerable<ValidationMessage>> ValidateAsync(Article content)
