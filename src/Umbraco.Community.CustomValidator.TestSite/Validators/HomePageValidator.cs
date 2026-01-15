@@ -11,12 +11,11 @@ public class HomePageValidator() : BaseDocumentValidator<Home>(Home.ModelTypeAli
     {
         var messages = new List<ValidationMessage>();
 
-        // Example validation: Check if home page title is empty
-        if (string.IsNullOrWhiteSpace(content.Name))
+        if (string.IsNullOrWhiteSpace(content.Title) || content.Title.Length <= 10)
         {
             messages.Add(new ValidationMessage
             {
-                Message = "Home page title cannot be empty",
+                Message = "Title: The title must be longer than 10 characters.",
                 Severity = ValidationSeverity.Error
             });
         }
@@ -25,25 +24,15 @@ public class HomePageValidator() : BaseDocumentValidator<Home>(Home.ModelTypeAli
         {
             messages.Add(new ValidationMessage
             {
-                Message = "Main Image: no alt text",
+                Message = "Main Image: has no alt text.",
                 Severity = ValidationSeverity.Warning
-            });
-        }
-
-        // Example validation: Check if name is too short
-        if (!string.IsNullOrWhiteSpace(content.Name) && content.Name.Length < 3)
-        {
-            messages.Add(new ValidationMessage
-            {
-                Message = "Home page title should be at least 3 characters long",
-                Severity = ValidationSeverity.Error
             });
         }
 
         // Example info message
         messages.Add(new ValidationMessage
         {
-            Message = "Home page validation completed successfully",
+            Message = "Cool here is some info...",
             Severity = ValidationSeverity.Info
         });
 

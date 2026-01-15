@@ -4,7 +4,7 @@
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.CustomValidator?color=0273B3)](https://www.nuget.org/packages/Umbraco.Community.CustomValidator)
 [![GitHub license](https://img.shields.io/github/license/YourGitHubUsername/YourGitHubRepoName?color=8AB803)](https://github.com/YourGitHubUsername/YourGitHubRepoName/blob/main/LICENSE)
 
-A comprehensive document validation framework for Umbraco CMS v17+ that provides real-time content validation with a beautiful backoffice UI. Display validation results directly in the Umbraco backoffice with support for multi-culture content and automatic publish blocking when errors are present.
+A document type validation framework for Umbraco CMS v17+ that provides real-time content validation with a backoffice UI. Display validation results directly in the Umbraco backoffice with support for multi-culture content and automatic publish blocking when errors are present.
 
 ## Features
 

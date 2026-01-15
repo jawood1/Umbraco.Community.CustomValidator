@@ -11,7 +11,7 @@
 		<Product>Umbraco.Community.CustomValidator</Product>
 		<PackageId>Umbraco.Community.CustomValidator</PackageId>
 		<Title>CustomValidator</Title>
-		<Description>...</Description>
+		<Description>A document type validation framework for Umbraco CMS that provides real-time content validation with a backoffice UI. Display validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.</Description>
 		<PackageTags>umbraco;umbraco-marketplace</PackageTags>
 		<Authors>Jonathan Wood</Authors>
 		<Copyright>$([System.DateTime]::UtcNow.ToString(`yyyy`)) © Jonathan Wood</Copyright>

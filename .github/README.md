@@ -4,7 +4,7 @@
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.CustomValidator?color=0273B3)](https://www.nuget.org/packages/Umbraco.Community.CustomValidator)
 [![GitHub license](https://img.shields.io/github/license/jawood1/Umbraco.Community.CustomValidator?color=8AB803)](../LICENSE)
 
-A comprehensive document validation framework for Umbraco CMS that provides real-time content validation with a beautiful backoffice UI. Display validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.
+A document type validation framework for Umbraco CMS that provides real-time content validation with a backoffice UI. Display validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.
 
 ## Features
 
@@ -15,6 +15,14 @@ A comprehensive document validation framework for Umbraco CMS that provides real
 - 🎨 **Beautiful UI** - Dedicated validation tab in the content workspace with color-coded messages
 - 🔧 **Easy to Extend** - Simple base class for creating custom validators
 - 📝 **Type-Safe** - Built with strongly-typed models and enums
+
+## Screenshots
+
+### Validation Tab
+![Validation tab showing error, warning, and info messages in the Umbraco backoffice](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/single-lang-view.jpg)
+
+### Multi-Culture Split View
+![Multi-culture validation results displayed in split-view mode](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/split-lang-view.jpg)
 
 ## Installation
 
