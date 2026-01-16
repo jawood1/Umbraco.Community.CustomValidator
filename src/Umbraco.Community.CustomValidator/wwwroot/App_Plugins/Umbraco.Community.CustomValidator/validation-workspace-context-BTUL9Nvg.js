@@ -63,9 +63,6 @@ class c extends u {
     const a = t || "default";
     return this.#t.get(a);
   }
-  getLastValidationResult() {
-    return Array.from(this.#t.values())[0];
-  }
   hasBlockingErrors(t) {
     const a = t || "default", e = this.#t.get(a);
     return e ? e.messages.some((s) => s.severity === d.Error) : !1;
@@ -85,4 +82,4 @@ export {
   d as a,
   x as v
 };
-//# sourceMappingURL=validation-workspace-context-DCPpyFQL.js.map
+//# sourceMappingURL=validation-workspace-context-BTUL9Nvg.js.map

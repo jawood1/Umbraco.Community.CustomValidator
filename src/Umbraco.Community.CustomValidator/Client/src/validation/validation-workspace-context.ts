@@ -45,11 +45,6 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
         return this.#validationResults.get(cultureKey);
     }
 
-    getLastValidationResult(): ValidationResult | undefined {
-        // Return any available result
-        return Array.from(this.#validationResults.values())[0];
-    }
-
     hasBlockingErrors(culture?: string): boolean {
         const cultureKey = culture || 'default';
         const result = this.#validationResults.get(cultureKey);

@@ -11,7 +11,6 @@ import { ValidationSeverity } from './types.js';
 // Typed constants for delays
 const SAVE_DELAY_MS = 500;
 const INITIAL_VALIDATION_DELAY_MS = 1000;
-const INSTANCE_RESET_DELAY_MS = 2000;
 
 // Type-safe severity order for sorting
 const SEVERITY_ORDER: Record<ValidationSeverity, number> = {
@@ -27,10 +26,13 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
     [ValidationSeverity.Info]: 'default'
 } as const;
 
-// Module-level map to track which documents have been validated
+// Module-level map to track which documents+cultures have been validated
+// Key format: "documentId|culture" or "documentId|undefined" for invariant
 const validatedDocuments = new Map<string, boolean>();
 
-// Track instance registration order for split view detection
+// Track which instances are currently active in split view
+// Maps documentId to array of [instanceId, variantIndex] pairs
+const splitViewInstances = new Map<string, Map<number, number>>();
 let instanceCounter = 0;
 
 @customElement('custom-validator-workspace-view')
@@ -48,6 +50,9 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     @state()
     private _currentCulture?: string;
 
+    @state()
+    private _cultureReady = false;
+
     // Cached computed properties for performance (memoization)
     @state()
     private _sortedMessages?: ValidationMessage[];
@@ -61,10 +66,8 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     constructor() {
         super();
         
-        // Assign unique instance ID for split view detection
+        // Assign unique instance ID for debugging
         this.#instanceId = instanceCounter++;
-        // Reset counter after a delay (new document or view changes)
-        setTimeout(() => { if (instanceCounter > 1) instanceCounter = 0; }, INSTANCE_RESET_DELAY_MS);
 
         this.#setupWorkspaceObservers();
         this.#setupValidationObservers();
@@ -80,31 +83,69 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     }
 
     #observeVariants(workspace: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE) {
+        // Observe the split view to know which variants are active
         this.observe(
             workspace.splitView.activeVariantsInfo,
             async (variants) => {
-                if (variants && variants.length > 0) {
-                    const variantIndex = this.#getVariantIndex(variants.length);
+                if (!variants || variants.length === 0) {
+                    this._currentCulture = undefined;
+                    this._cultureReady = true;
+                    return;
+                }
+                
+                const docId = this._documentId || 'unknown';
+                let instanceMap = splitViewInstances.get(docId);
+                
+                if (variants.length > 1) {
+                    // Split view mode - register this instance
+                    if (!instanceMap) {
+                        instanceMap = new Map();
+                        splitViewInstances.set(docId, instanceMap);
+                    }
+                    
+                    // Assign variant index based on registration order in THIS split view session
+                    if (!instanceMap.has(this.#instanceId)) {
+                        const assignedIndex = instanceMap.size; // 0 for first, 1 for second
+                        instanceMap.set(this.#instanceId, assignedIndex);
+                    }
+                    
+                    const variantIndex = instanceMap.get(this.#instanceId)!;
                     const variant = variants[variantIndex];
                     const newCulture = variant?.culture ?? undefined;
                     
                     // Only update if culture actually changed
                     if (this._currentCulture !== newCulture) {
                         this._currentCulture = newCulture;
+                        this._cultureReady = true;
                         await this.#loadCachedValidationResult();
+                    } else if (!this._cultureReady) {
+                        this._cultureReady = true;
                     }
                 } else {
-                    this._currentCulture = undefined;
+                    // Single view mode - clear split view tracking
+                    if (instanceMap) {
+                        splitViewInstances.delete(docId);
+                    }
+                    
+                    const variant = variants[0];
+                    const newCulture = variant?.culture ?? undefined;
+                    
+                    if (this._currentCulture !== newCulture) {
+                        this._currentCulture = newCulture;
+                        this._cultureReady = true;
+                        await this.#loadCachedValidationResult();
+                    } else if (!this._cultureReady) {
+                        this._cultureReady = true;
+                    }
                 }
             }
         );
     }
 
-    #getVariantIndex(variantCount: number): number {
-        // Use instance ID to determine which variant this view represents
-        // In split view: instance 0 = variant 0, instance 1 = variant 1
-        // In single view: always use first variant
-        return variantCount > 1 ? Math.min(this.#instanceId, variantCount - 1) : 0;
+    #getValidationKey(): string | undefined {
+        // Generate a unique key for tracking validation per document+culture
+        if (!this._documentId) return undefined;
+        return `${this._documentId}|${this._currentCulture ?? 'undefined'}`;
     }
 
     #observeDocumentChanges(workspace: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE) {
@@ -119,9 +160,11 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
                 // Clear validation results when switching documents
                 await this.#clearValidationOnDocumentSwitch();
                 
-                // Only reset validation flag when truly switching between different documents
+                // Only reset validation flags when truly switching between different documents
                 if (isDocumentSwitch && unique) {
-                    validatedDocuments.delete(unique);
+                    // Clear all validation flags for this document (all cultures)
+                    const keysToDelete = Array.from(validatedDocuments.keys()).filter(key => key.startsWith(`${unique}|`));
+                    keysToDelete.forEach(key => validatedDocuments.delete(key));
                 }
             }
         );
@@ -179,12 +222,21 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     override connectedCallback() {
         super.connectedCallback();
         
-        const hasValidatedOnce = this._documentId ? validatedDocuments.get(this._documentId) ?? false : false;
+        // In split view, wait for culture to be ready before initial validation
+        // The #observeVariants will trigger validation once culture is set
+        if (!this._cultureReady) {
+            return;
+        }
+        
+        const validationKey = this.#getValidationKey();
+        const hasValidatedOnce = validationKey ? validatedDocuments.get(validationKey) ?? false : false;
         
         // Validate when tab becomes visible
         if (this._documentId) {
             if (!hasValidatedOnce) {
-                validatedDocuments.set(this._documentId, true);
+                if (validationKey) {
+                    validatedDocuments.set(validationKey, true);
+                }
                 // Skip save on initial load to avoid triggering save modal
                 this.#validateAndUpdateResult({ useDelay: true, skipSave: true });
             } else {
@@ -198,6 +250,17 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         // Clean up cached state when component is removed
         this._sortedMessages = undefined;
         this._messageCounts = undefined;
+        
+        // Clean up split view tracking for this instance
+        if (this._documentId) {
+            const instanceMap = splitViewInstances.get(this._documentId);
+            if (instanceMap) {
+                instanceMap.delete(this.#instanceId);
+                if (instanceMap.size === 0) {
+                    splitViewInstances.delete(this._documentId);
+                }
+            }
+        }
     }
 
     // Unified validation method replacing all duplicate validation logic
