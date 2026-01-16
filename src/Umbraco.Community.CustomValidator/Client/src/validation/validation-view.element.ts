@@ -394,13 +394,26 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         return html`
             <uui-box headline="Validation Results" headline-variant="h5">
                 ${!this.#hasErrorsOrWarnings() ? this.#renderSuccessMessage() : nothing}
-                <div>
+                <uui-table aria-label="Validation Messages">
+                    <uui-table-head>
+                        <uui-table-head-cell style="width: 120px;">Severity</uui-table-head-cell>
+                        <uui-table-head-cell>Message</uui-table-head-cell>
+                    </uui-table-head>
                     ${repeat(
                         this._sortedMessages ?? [],
                         (msg) => msg.message,
-                        (msg) => this.#renderValidationMessage(msg)
+                        (msg) => html`
+                            <uui-table-row>
+                                <uui-table-cell>
+                                    <uui-tag color=${this.#getSeverityColor(msg.severity)} look="primary">
+                                        ${msg.severity}
+                                    </uui-tag>
+                                </uui-table-cell>
+                                <uui-table-cell>${msg.message}</uui-table-cell>
+                            </uui-table-row>
+                        `
                     )}
-                </div>
+                </uui-table>
             </uui-box>
         `;
     }
@@ -429,18 +442,6 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
             <p style="color: var(--uui-color-positive);">
                 <uui-icon name="icon-check"></uui-icon>
                 All validations passed successfully.
-            </p>
-        `;
-    }
-
-    #renderValidationMessage(msg: ValidationMessage) {
-        const color = this.#getSeverityColor(msg.severity);
-        return html`
-            <p>
-                <uui-tag color=${color} look="primary">
-                    ${msg.severity}
-                </uui-tag>
-                ${msg.message}
             </p>
         `;
     }
