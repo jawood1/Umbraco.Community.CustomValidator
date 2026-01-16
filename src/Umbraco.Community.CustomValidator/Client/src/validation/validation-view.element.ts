@@ -2,7 +2,6 @@ import { customElement, state, html, nothing, repeat, type PropertyValues } from
 import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
-import { UMB_NOTIFICATION_CONTEXT } from '@umbraco-cms/backoffice/notification';
 import type { UmbWorkspaceViewElement } from '@umbraco-cms/backoffice/workspace';
 import { VALIDATION_WORKSPACE_CONTEXT } from './validation-workspace-context.js';
 import type { ValidationResult, ValidationMessage, NotificationColor } from './types.js';
@@ -29,7 +28,6 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
 // Module-level map to track which documents+cultures have been validated
 // Key format: "documentId|culture" or "documentId|undefined" for invariant
 const validatedDocuments = new Map<string, boolean>();
-
 
 // Static array to track registration order of instances for split view
 const splitViewInstanceOrder: CustomValidatorWorkspaceView[] = [];
@@ -263,31 +261,6 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         await this.#validateAndUpdateResult();
     };
 
-    #handleSaveAndPublishClick = async () => {
-        if (!this._documentId) return;
-        if (this._validationResult?.hasValidator === false) return;
-
-        try {
-            // Validate first
-            await this.#validateAndUpdateResult();
-
-            // Check for blocking errors
-            const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
-            if (validationContext?.hasBlockingErrors(this._currentCulture)) {
-                await this.#showNotification('danger', 'Cannot Publish', 'Validation errors must be resolved first');
-                return;
-            }
-
-            // Publish if no errors
-            await this.#publishDocument();
-        } catch (error) {
-            await this.#showNotification(
-                'danger',
-                'Error',
-                error instanceof Error ? error.message : 'Save and publish failed'
-            );
-        }
-    };
 
     // Typed utility helpers
     #sortMessagesBySeverity(): ValidationMessage[] | undefined {
@@ -311,28 +284,6 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         return this._validationResult?.messages.some(
             m => m.severity === ValidationSeverity.Error || m.severity === ValidationSeverity.Warning
         ) ?? false;
-    }
-
-    async #showNotification(color: NotificationColor, headline: string, message: string) {
-        try {
-            const notificationContext = await this.getContext(UMB_NOTIFICATION_CONTEXT);
-            notificationContext?.peek(color, {
-                data: { headline, message }
-            });
-        } catch (error) {
-            console.error('Failed to show notification:', error);
-        }
-    }
-
-    async #publishDocument() {
-        try {
-            if (this.#contentWorkspace && 'publish' in this.#contentWorkspace && typeof this.#contentWorkspace.publish === 'function') {
-                await this.#contentWorkspace.publish();
-            }
-        } catch (error) {
-            console.error('Failed to publish document:', error);
-            throw error;
-        }
     }
 
     #delay(ms: number): Promise<void> {
@@ -442,14 +393,6 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
                     @click=${this.#handleValidateClick}
                     ?disabled=${!this._documentId || this._isValidating}>
                     Save & Validate
-                </uui-button>
-                <uui-button
-                    look="primary"
-                    color="positive"
-                    label="Validate & Publish"
-                    @click=${this.#handleSaveAndPublishClick}
-                    ?disabled=${!this._documentId || this._isValidating}>
-                    Validate & Publish
                 </uui-button>
                 ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}
             </uui-button-group>

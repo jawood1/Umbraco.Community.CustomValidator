@@ -102,7 +102,7 @@ The main UI component that renders the validation tab:
    - Document switch detection
    - Culture/variant change in split view
    - Manual validation button
-   - Save & Publish button (with document save)
+   - Save & Validate button (manual validation)
 
 4. **Memoized Properties**
    - `_sortedMessages` - Messages sorted by severity (Error > Warning > Info)
@@ -113,7 +113,7 @@ The main UI component that renders the validation tab:
    - Color-coded messages by severity
    - Loading states
    - Manual validation controls
-   - Save & Publish integration
+   - No custom publish integration (see limitations below)
 
 6. **Split View Support**
    - Tracks variant changes using `workspace.variants` observable
@@ -177,6 +177,10 @@ SEVERITY_COLOR_MAP = {
 ```
 
 ## Building
+
+## Publish Button Limitation
+
+**Note:** Due to Umbraco's public API limitations, custom workspace views cannot trigger the full publish workflow (including variant selection and modals). The built-in publish button in the main toolbar should be used for publishing content. The custom view only supports "Save & Validate" for manual validation.
 
 ```bash
 # Install dependencies
