@@ -30,9 +30,9 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
 // Key format: "documentId|culture" or "documentId|undefined" for invariant
 const validatedDocuments = new Map<string, boolean>();
 
-// Track which instances are currently active in split view
-// Maps documentId to array of [instanceId, variantIndex] pairs
-const splitViewInstances = new Map<string, Map<number, number>>();
+
+// Static array to track registration order of instances for split view
+const splitViewInstanceOrder: CustomValidatorWorkspaceView[] = [];
 let instanceCounter = 0;
 
 @customElement('custom-validator-workspace-view')
@@ -65,10 +65,10 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
 
     constructor() {
         super();
-        
         // Assign unique instance ID for debugging
         this.#instanceId = instanceCounter++;
-
+        // Register this instance for split view assignment
+        splitViewInstanceOrder.push(this);
         this.#setupWorkspaceObservers();
         this.#setupValidationObservers();
     }
@@ -92,51 +92,20 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
                     this._cultureReady = true;
                     return;
                 }
-                
-                const docId = this._documentId || 'unknown';
-                let instanceMap = splitViewInstances.get(docId);
-                
-                if (variants.length > 1) {
-                    // Split view mode - register this instance
-                    if (!instanceMap) {
-                        instanceMap = new Map();
-                        splitViewInstances.set(docId, instanceMap);
-                    }
-                    
-                    // Assign variant index based on registration order in THIS split view session
-                    if (!instanceMap.has(this.#instanceId)) {
-                        const assignedIndex = instanceMap.size; // 0 for first, 1 for second
-                        instanceMap.set(this.#instanceId, assignedIndex);
-                    }
-                    
-                    const variantIndex = instanceMap.get(this.#instanceId)!;
-                    const variant = variants[variantIndex];
-                    const newCulture = variant?.culture ?? undefined;
-                    
-                    // Only update if culture actually changed
-                    if (this._currentCulture !== newCulture) {
-                        this._currentCulture = newCulture;
-                        this._cultureReady = true;
-                        await this.#loadCachedValidationResult();
-                    } else if (!this._cultureReady) {
-                        this._cultureReady = true;
-                    }
-                } else {
-                    // Single view mode - clear split view tracking
-                    if (instanceMap) {
-                        splitViewInstances.delete(docId);
-                    }
-                    
-                    const variant = variants[0];
-                    const newCulture = variant?.culture ?? undefined;
-                    
-                    if (this._currentCulture !== newCulture) {
-                        this._currentCulture = newCulture;
-                        this._cultureReady = true;
-                        await this.#loadCachedValidationResult();
-                    } else if (!this._cultureReady) {
-                        this._cultureReady = true;
-                    }
+
+                // Use registration order to assign variant/culture
+                let myIndex = splitViewInstanceOrder.indexOf(this);
+                // Clamp index to available variants
+                const variantIndex = Math.max(0, Math.min(myIndex, variants.length - 1));
+                const variant = variants[variantIndex];
+                const newCulture = variant?.culture ?? undefined;
+
+                if (this._currentCulture !== newCulture) {
+                    this._currentCulture = newCulture;
+                    this._cultureReady = true;
+                    await this.#loadCachedValidationResult();
+                } else if (!this._cultureReady) {
+                    this._cultureReady = true;
                 }
             }
         );
@@ -250,17 +219,9 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         // Clean up cached state when component is removed
         this._sortedMessages = undefined;
         this._messageCounts = undefined;
-        
-        // Clean up split view tracking for this instance
-        if (this._documentId) {
-            const instanceMap = splitViewInstances.get(this._documentId);
-            if (instanceMap) {
-                instanceMap.delete(this.#instanceId);
-                if (instanceMap.size === 0) {
-                    splitViewInstances.delete(this._documentId);
-                }
-            }
-        }
+        // Remove this instance from split view registration array
+        const idx = splitViewInstanceOrder.indexOf(this);
+        if (idx !== -1) splitViewInstanceOrder.splice(idx, 1);
     }
 
     // Unified validation method replacing all duplicate validation logic
