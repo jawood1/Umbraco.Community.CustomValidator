@@ -2,11 +2,11 @@
 
 internal sealed record ValidationResponse
 {
-    public required Guid ContentId { get; set; }
+    public required Guid ContentId { get; init; }
 
-    public required string ContentTypeAlias { get; set; }
+    public required string ContentTypeAlias { get; init; }
 
-    public bool HasValidator { get; set; }
+    public bool HasValidator { get; init; }
 
-    public IEnumerable<ValidationMessage>? Messages { get; set; }
+    public IEnumerable<ValidationMessage>? Messages { get; init; }
 }

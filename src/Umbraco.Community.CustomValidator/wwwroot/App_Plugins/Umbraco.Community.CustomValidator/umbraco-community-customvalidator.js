@@ -5,7 +5,7 @@ const i = [
     type: "workspaceContext",
     alias: "CustomValidator.WorkspaceContext.Validation",
     name: "Validation Workspace Context",
-    api: () => import("./validation-workspace-context-Ci2i-Dis.js").then((a) => a.v),
+    api: () => import("./validation-workspace-context-DCPpyFQL.js").then((a) => a.v),
     conditions: [
       {
         alias: t,
@@ -17,7 +17,7 @@ const i = [
     type: "workspaceView",
     alias: "CustomValidator.WorkspaceView.Validation",
     name: "Validation Workspace View",
-    element: () => import("./validation-view.element-gCsZ-Jg3.js"),
+    element: () => import("./validation-view.element-BXKNHWzD.js"),
     weight: 1,
     meta: {
       label: "Validation",

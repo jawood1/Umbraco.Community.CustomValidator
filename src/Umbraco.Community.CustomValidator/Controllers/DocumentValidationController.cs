@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Api.Management.Controllers;
 using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -16,36 +18,56 @@ public sealed class DocumentValidationController(
     DocumentValidationService validationService,
     IUmbracoContextAccessor umbracoContextAccessor,
     IVariationContextAccessor variationContextAccessor,
-    ILanguageService languageService)
+    ILanguageService languageService,
+    ILogger<DocumentValidationController> logger)
     : ManagementApiControllerBase
 {
     [HttpGet("validate/{id:guid}")]
     public async Task<IActionResult> ValidateDocument(Guid id, [FromQuery] string? culture = null)
     {
-        var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
-        var content = umbracoContext.Content.GetById(preview: true, id);
-
-        if (content == null)
+        try
         {
-            return NotFound(new { message = "Document not found" });
+            var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
+            var content = umbracoContext.Content.GetById(preview: true, id);
+
+            if (content == null)
+            {
+                return Ok(new ValidationResponse
+                {
+                    ContentId = id,
+                    ContentTypeAlias = string.Empty,
+                    HasValidator = false,
+                    Messages = []
+                });
+            }
+
+            // Set the culture context for validation
+            var currentCulture = await GetCurrentCultureAsync(culture, content);
+            if (!string.IsNullOrEmpty(currentCulture))
+            {
+                variationContextAccessor.VariationContext = new VariationContext(currentCulture);
+            }
+
+            var validationMessages = await validationService.ValidateAsync(content);
+
+            return Ok(new ValidationResponse
+            {
+                ContentId = id,
+                ContentTypeAlias = content.ContentType.Alias,
+                HasValidator = validationService.HasValidator(content.ContentType.Alias),
+                Messages = validationMessages
+            });
         }
-
-        // Set the culture context for validation
-        var currentCulture = await GetCurrentCultureAsync(culture, content);
-        if (!string.IsNullOrEmpty(currentCulture))
+        catch (Exception ex)
         {
-            variationContextAccessor.VariationContext = new VariationContext(currentCulture);
+            logger.LogError(ex, "Error validating document {DocumentId} with culture {Culture}", id, culture);
+            
+            return Problem(
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Validation Error",
+                detail: "An exception occurred while validating the document. Please check the logs."
+            );
         }
-
-        var validationMessages = await validationService.ValidateAsync(content);
-
-        return Ok(new ValidationResponse
-        {
-            ContentId = id,
-            ContentTypeAlias = content.ContentType.Alias,
-            HasValidator = validationService.HasValidator(content.ContentType.Alias),
-            Messages = validationMessages
-        });
     }
 
     private async Task<string?> GetCurrentCultureAsync(string? culture, IPublishedContent? content = null)

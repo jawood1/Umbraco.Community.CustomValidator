@@ -3,7 +3,7 @@ import { UmbLitElement as it } from "@umbraco-cms/backoffice/lit-element";
 import { UmbTextStyles as et } from "@umbraco-cms/backoffice/style";
 import { UMB_CONTENT_WORKSPACE_CONTEXT as at } from "@umbraco-cms/backoffice/content";
 import { UMB_NOTIFICATION_CONTEXT as st } from "@umbraco-cms/backoffice/notification";
-import { V as m, a as u } from "./validation-workspace-context-Ci2i-Dis.js";
+import { V as m, a as u } from "./validation-workspace-context-DCPpyFQL.js";
 var nt = Object.defineProperty, rt = Object.getOwnPropertyDescriptor, O = (t) => {
   throw TypeError(t);
 }, h = (t, i, s, r) => {
@@ -307,4 +307,4 @@ export {
   d as CustomValidatorWorkspaceView,
   d as element
 };
-//# sourceMappingURL=validation-view.element-gCsZ-Jg3.js.map
+//# sourceMappingURL=validation-view.element-BXKNHWzD.js.map
