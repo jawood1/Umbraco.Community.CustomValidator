@@ -1,4 +1,5 @@
 import type { ValidationResult } from './types.js';
+import { ValidationSeverity } from './types.js';
 import { UmbControllerBase } from '@umbraco-cms/backoffice/class-api';
 import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
@@ -7,31 +8,26 @@ export class ValidationApiService extends UmbControllerBase {
     constructor(host: UmbControllerHost) {
         super(host);
     }
-
-    async validateDocument(id: string, culture?: string): Promise<ValidationResult> {
+    
+    async validateDocumentMultipleCultures(id: string, cultures: (string | undefined)[]): Promise<Record<string, ValidationResult>> {
         try {
             const authContext = await this.getContext(UMB_AUTH_CONTEXT);
             const token = await authContext?.getLatestToken();
 
             const url = new URL(`/umbraco/management/api/v1/validation/validate/${id}`, window.location.origin);
-            if (culture) {
-                url.searchParams.append('culture', culture);
-            }
-
             const response = await fetch(url.toString(), {
-                method: 'GET',
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ cultures }),
             });
 
             if (!response.ok) {
-                // Try to parse error message from response (supports both ProblemDetails and custom formats)
                 let errorMessage = `Validation request failed: ${response.status} ${response.statusText}`;
                 try {
                     const errorData = await response.json();
-                    // Check for ProblemDetails format (detail/title) or custom format (message)
                     if (errorData.detail) {
                         errorMessage = errorData.detail;
                     } else if (errorData.title) {
@@ -39,27 +35,29 @@ export class ValidationApiService extends UmbControllerBase {
                     } else if (errorData.message) {
                         errorMessage = errorData.message;
                     }
-                } catch {
-                    // If parsing fails, use default message
-                }
+                } catch {}
                 throw new Error(errorMessage);
             }
 
             const result = await response.json();
-            
-            // Ensure we always return a valid ValidationResult
-            return result || {
-                contentId: id,
-                contentTypeAlias: '',
-                hasValidator: false,
-                messages: []
-            };
+            return result || {};
         } catch (error) {
-            // Re-throw with more context
-            if (error instanceof Error) {
-                throw new Error(`Failed to validate document: ${error.message}`);
+            // Return a fallback error result for all requested cultures
+            const fallback: Record<string, ValidationResult> = {};
+            for (const culture of cultures) {
+                fallback[culture || 'default'] = {
+                    contentId: id,
+                    contentTypeAlias: '',
+                    hasValidator: false,
+                    messages: [{ message: `Validation failed: ${(error as Error).message}`, severity: ValidationSeverity.Error }]
+                };
             }
-            throw new Error('Failed to validate document: Unknown error');
+            return fallback;
         }
+    }
+
+    async validateDocument(id: string, culture?: string): Promise<ValidationResult> {
+        const results = await this.validateDocumentMultipleCultures(id, [culture]);
+        return results[culture || 'default'];
     }
 }

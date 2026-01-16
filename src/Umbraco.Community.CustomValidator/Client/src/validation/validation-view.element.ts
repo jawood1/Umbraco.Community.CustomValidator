@@ -40,7 +40,9 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     private _documentId?: string;
 
     @state()
-    private _validationResult?: ValidationResult;
+    private _validationResults: Record<string, ValidationResult> = {};
+    @state()
+    private _activeCulture?: string;
 
     @state()
     private _isValidating = false;
@@ -50,13 +52,6 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
 
     @state()
     private _cultureReady = false;
-
-    // Cached computed properties for performance (memoization)
-    @state()
-    private _sortedMessages?: ValidationMessage[];
-
-    @state()
-    private _messageCounts?: { errors: number; warnings: number };
 
     #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
     #currentDocumentId?: string;
@@ -156,7 +151,14 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         try {
             const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
             if (validationContext) {
-                this._validationResult = validationContext.getValidationResult(this._currentCulture);
+                // Load all cached results for all cultures
+                const cultures = Object.keys(this._validationResults);
+                const results: Record<string, ValidationResult> = {};
+                for (const culture of cultures) {
+                    const result = validationContext.getValidationResult(culture === 'default' ? undefined : culture);
+                    if (result) results[culture] = result;
+                }
+                this._validationResults = results;
             }
         } catch (error) {
             console.error('Failed to load cached validation result:', error);
@@ -181,8 +183,6 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         
         // Recalculate cached computed properties when validation result changes
         if (changedProperties.has('_validationResult')) {
-            this._sortedMessages = this.#sortMessagesBySeverity();
-            this._messageCounts = this.#getMessageCounts();
         }
     }
 
@@ -214,18 +214,14 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
 
     override disconnectedCallback() {
         super.disconnectedCallback();
-        // Clean up cached state when component is removed
-        this._sortedMessages = undefined;
-        this._messageCounts = undefined;
         // Remove this instance from split view registration array
         const idx = splitViewInstanceOrder.indexOf(this);
         if (idx !== -1) splitViewInstanceOrder.splice(idx, 1);
     }
 
-    // Unified validation method replacing all duplicate validation logic
+    // Unified validation method for all cultures
     async #validateAndUpdateResult(options: { useDelay?: boolean; skipSave?: boolean } = {}) {
         if (!this._documentId) return;
-        if (this._validationResult?.hasValidator === false) return;
 
         try {
             const validationContext = await this.getContext(VALIDATION_WORKSPACE_CONTEXT);
@@ -238,9 +234,23 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
                         await this.#contentWorkspace.requestSubmit();
                         await this.#delay(SAVE_DELAY_MS);
                     }
-                    
-                    await validationContext.validateManually(this._documentId!, this._currentCulture);
-                    this._validationResult = validationContext.getValidationResult(this._currentCulture);
+
+                    // Detect split view: if more than one variant, validate all cultures at once
+                    let allCultures: string[] | undefined = undefined;
+                    const splitView = this.#contentWorkspace?.splitView;
+                    let variants: any[] = [];
+                    if (splitView && typeof splitView.activeVariantsInfo.subscribe === 'function') {
+                        // Synchronously get the current value of the observable
+                        splitView.activeVariantsInfo.subscribe((val: any[]) => { variants = val; }) ;
+                    }
+                    if (variants.length > 1) {
+                        allCultures = variants.map((v: any) => v.culture ?? undefined);
+                    }
+
+                    const results = await validationContext.validateManually(this._documentId!, this._currentCulture, allCultures);
+                    this._validationResults = results;
+                    // Set active culture for rendering
+                    this._activeCulture = this._currentCulture ?? 'default';
                 } catch (error) {
                     console.debug('Validation skipped:', error);
                 }
@@ -250,7 +260,7 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
             if (options.useDelay) {
                 await this.#delay(INITIAL_VALIDATION_DELAY_MS);
             }
-            
+
             await performValidation();
         } catch (error) {
             console.error('Failed to validate and update result:', error);
@@ -261,29 +271,19 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         await this.#validateAndUpdateResult();
     };
 
-
-    // Typed utility helpers
-    #sortMessagesBySeverity(): ValidationMessage[] | undefined {
-        if (!this._validationResult?.messages) return undefined;
-        return [...this._validationResult.messages].sort((a, b) => 
-            SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
-        );
-    }
-
-    #getMessageCounts(): { errors: number; warnings: number } {
-        if (!this._validationResult) {
-            return { errors: 0, warnings: 0 };
+    #getMessageCounts(cultures?: string[]): { errors: number; warnings: number } {
+        // If cultures not provided, use all keys in _validationResults
+        const toCount = cultures && cultures.length > 0 ? cultures : Object.keys(this._validationResults);
+        let errors = 0;
+        let warnings = 0;
+        for (const culture of toCount) {
+            const result = this._validationResults[culture];
+            if (result) {
+                errors += result.messages.filter((m: ValidationMessage) => m.severity === ValidationSeverity.Error).length;
+                warnings += result.messages.filter((m: ValidationMessage) => m.severity === ValidationSeverity.Warning).length;
+            }
         }
-        return {
-            errors: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Error).length,
-            warnings: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Warning).length
-        };
-    }
-
-    #hasErrorsOrWarnings(): boolean {
-        return this._validationResult?.messages.some(
-            m => m.severity === ValidationSeverity.Error || m.severity === ValidationSeverity.Warning
-        ) ?? false;
+        return { errors, warnings };
     }
 
     #delay(ms: number): Promise<void> {
@@ -295,38 +295,52 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     }
 
     #renderValidationResults() {
-        if (this._isValidating || !this._validationResult) {
+        if (this._isValidating) {
             return this.#renderLoadingState();
         }
-
-        if (!this._validationResult.hasValidator) {
-            return this.#renderNoValidatorState();
+        const cultures = Object.keys(this._validationResults);
+        if (cultures.length === 0) {
+            return this.#renderLoadingState();
         }
-
+        // In split view, show all cultures; in single view, show only the active culture
+        const toRender = cultures.length > 1 ? cultures : [this._activeCulture ?? 'default'];
         return html`
-            <uui-box headline="Validation Results" headline-variant="h5">
-                ${!this.#hasErrorsOrWarnings() ? this.#renderSuccessMessage() : nothing}
-                <uui-table aria-label="Validation Messages">
-                    <uui-table-head>
-                        <uui-table-head-cell style="width: 120px;">Severity</uui-table-head-cell>
-                        <uui-table-head-cell>Message</uui-table-head-cell>
-                    </uui-table-head>
-                    ${repeat(
-                        this._sortedMessages ?? [],
-                        (msg) => msg.message,
-                        (msg) => html`
-                            <uui-table-row>
-                                <uui-table-cell>
-                                    <uui-tag color=${this.#getSeverityColor(msg.severity)} look="primary">
-                                        ${msg.severity}
-                                    </uui-tag>
-                                </uui-table-cell>
-                                <uui-table-cell>${msg.message}</uui-table-cell>
-                            </uui-table-row>
-                        `
-                    )}
-                </uui-table>
-            </uui-box>
+            <div style="display: flex; gap: var(--uui-size-layout-1); flex-direction: column;">
+                ${toRender.map(culture => {
+                    const result = this._validationResults[culture];
+                    if (!result) return nothing;
+                    if (!result.hasValidator) {
+                        return html`<uui-box headline="${culture.toUpperCase()}" headline-variant="h5">${this.#renderNoValidatorState()}</uui-box>`;
+                    }
+                    const sortedMessages = [...result.messages].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+                    const hasErrorsOrWarnings = result.messages.some(m => m.severity === ValidationSeverity.Error || m.severity === ValidationSeverity.Warning);
+                    return html`
+                        <uui-box headline="${culture.toUpperCase()} Validation Results" headline-variant="h5">
+                            ${!hasErrorsOrWarnings ? this.#renderSuccessMessage() : nothing}
+                            <uui-table aria-label="Validation Messages">
+                                <uui-table-head>
+                                    <uui-table-head-cell style="width: 120px;">Severity</uui-table-head-cell>
+                                    <uui-table-head-cell>Message</uui-table-head-cell>
+                                </uui-table-head>
+                                ${repeat(
+                                    sortedMessages,
+                                    (msg) => msg.message,
+                                    (msg) => html`
+                                        <uui-table-row>
+                                            <uui-table-cell>
+                                                <uui-tag color=${this.#getSeverityColor(msg.severity)} look="primary">
+                                                    ${msg.severity}
+                                                </uui-tag>
+                                            </uui-table-cell>
+                                            <uui-table-cell>${msg.message}</uui-table-cell>
+                                        </uui-table-row>
+                                    `
+                                )}
+                            </uui-table>
+                        </uui-box>
+                    `;
+                })}
+            </div>
         `;
     }
 
@@ -341,10 +355,11 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         `;
     }
 
-    #renderNoValidatorState() {
+    #renderNoValidatorState(_culture?: string) {
+        const result = _culture ? this._validationResults[_culture] : undefined;
         return html`
             <uui-box headline="Status" headline-variant="h5">
-                <p>No validation configured for this content type (${this._validationResult?.contentTypeAlias}).</p>
+                <p>No validation configured for this content type (${result?.contentTypeAlias ?? ''}).</p>
             </uui-box>
         `;
     }
@@ -359,7 +374,10 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     }
 
     #renderHeader() {
-        const { errors, warnings } = this._messageCounts ?? { errors: 0, warnings: 0 };
+        // Show counts for all rendered cultures (split or single view)
+        const cultures = Object.keys(this._validationResults);
+        const toRender = cultures.length > 1 ? cultures : [this._activeCulture ?? 'default'];
+        const { errors, warnings } = this.#getMessageCounts(toRender);
 
         return html`
             <div slot="headline">
@@ -400,7 +418,8 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     }
 
     override render() {
-        const shouldShowControls = this._validationResult?.hasValidator !== false && this._validationResult !== undefined;
+        // Show controls if any culture has a validator
+        const shouldShowControls = Object.values(this._validationResults).some(r => r.hasValidator !== false);
         
         return html`
             <umb-body-layout header-transparent header-fit-height>

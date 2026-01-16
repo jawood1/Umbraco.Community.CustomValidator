@@ -23,15 +23,19 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
         this.provideContext(VALIDATION_WORKSPACE_CONTEXT, this);
     }
 
-    async validateManually(documentId: string, culture?: string) {
+    /**
+     * Always use the multi-culture POST endpoint. If allCultures is omitted, validates current (single) culture.
+     * Results are stored per culture.
+     */
+    async validateManually(documentId: string, culture?: string, allCultures?: string[]): Promise<Record<string, ValidationResult>> {
         this.#isValidating.setValue(true);
-
         try {
-            const result = await this.#apiService.validateDocument(documentId, culture);
-            // Store result per culture
-            const cultureKey = culture || 'default';
-            this.#validationResults.set(cultureKey, result);
-            return result;
+            const cultures = allCultures && allCultures.length > 0 ? allCultures : [culture];
+            const results = await this.#apiService.validateDocumentMultipleCultures(documentId, cultures);
+            for (const [cultureKey, result] of Object.entries(results)) {
+                this.#validationResults.set(cultureKey, result);
+            }
+            return results;
         } catch (error) {
             console.error('Manual validation failed:', error);
             throw error;

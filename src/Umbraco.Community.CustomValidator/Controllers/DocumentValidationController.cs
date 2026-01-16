@@ -6,6 +6,7 @@ using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Validation;
 using Umbraco.Extensions;
@@ -22,9 +23,14 @@ public sealed class DocumentValidationController(
     ILogger<DocumentValidationController> logger)
     : ManagementApiControllerBase
 {
-    [HttpGet("validate/{id:guid}")]
-    public async Task<IActionResult> ValidateDocument(Guid id, [FromQuery] string? culture = null)
+
+    private const string DefaultCultureKey = "default";
+
+    [HttpPost("validate/{id:guid}")]
+    public async Task<IActionResult> ValidateDocument(Guid id, [FromBody] DocumentValidationRequest request)
     {
+        var result = new Dictionary<string, ValidationResponse>();
+
         try
         {
             var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
@@ -32,36 +38,78 @@ public sealed class DocumentValidationController(
 
             if (content == null)
             {
-                return Ok(new ValidationResponse
+                // Return empty result for all requested cultures
+                if (request.Cultures is { Count: > 0 })
                 {
-                    ContentId = id,
-                    ContentTypeAlias = string.Empty,
-                    HasValidator = false,
-                    Messages = []
-                });
+                    foreach (var culture in request.Cultures)
+                    {
+                        result[culture ?? DefaultCultureKey] = new ValidationResponse
+                        {
+                            ContentId = id,
+                            ContentTypeAlias = string.Empty,
+                            HasValidator = false,
+                            Messages = []
+                        };
+                    }
+                }
+                else
+                {
+                    result[DefaultCultureKey] = new ValidationResponse
+                    {
+                        ContentId = id,
+                        ContentTypeAlias = string.Empty,
+                        HasValidator = false,
+                        Messages = []
+                    };
+                }
+
+                return Ok(result);
             }
 
-            // Set the culture context for validation
-            var currentCulture = await GetCurrentCultureAsync(culture, content);
-            if (!string.IsNullOrEmpty(currentCulture))
+            var cultures = request.Cultures is { Count: > 0 }
+                ? request.Cultures
+                : [null];
+
+            foreach (var culture in cultures)
             {
-                variationContextAccessor.VariationContext = new VariationContext(currentCulture);
+                try
+                {
+                    var currentCulture = await GetCurrentCultureAsync(culture, content);
+
+                    if (!string.IsNullOrEmpty(currentCulture))
+                    {
+                        variationContextAccessor.VariationContext = new VariationContext(currentCulture);
+                    }
+
+                    var validationMessages = await validationService.ValidateAsync(content);
+
+                    result[culture ?? DefaultCultureKey] = new ValidationResponse
+                    {
+                        ContentId = id,
+                        ContentTypeAlias = content.ContentType.Alias,
+                        HasValidator = validationService.HasValidator(content.ContentType.Alias),
+                        Messages = validationMessages
+                    };
+                }
+                catch (Exception exCulture)
+                {
+                    logger.LogError(exCulture, "Error validating document {DocumentId} with culture {Culture}", id, culture);
+
+                    result[culture ?? DefaultCultureKey] = new ValidationResponse
+                    {
+                        ContentId = id,
+                        ContentTypeAlias = content.ContentType.Alias,
+                        HasValidator = false,
+                        Messages = [new ValidationMessage { Message = $"Validation error: {exCulture.Message}", Severity = ValidationSeverity.Error }]
+                    };
+                }
             }
-
-            var validationMessages = await validationService.ValidateAsync(content);
-
-            return Ok(new ValidationResponse
-            {
-                ContentId = id,
-                ContentTypeAlias = content.ContentType.Alias,
-                HasValidator = validationService.HasValidator(content.ContentType.Alias),
-                Messages = validationMessages
-            });
+            return Ok(result);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error validating document {DocumentId} with culture {Culture}", id, culture);
-            
+            logger.LogError(ex, "Error validating document {DocumentId}", id);
+
             return Problem(
                 statusCode: StatusCodes.Status500InternalServerError,
                 title: "Validation Error",
