@@ -64,6 +64,8 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         splitViewInstanceOrder.push(this);
         this.#setupWorkspaceObservers();
         this.#setupValidationObservers();
+        // Listen for global validate-all event
+        window.addEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
     }
 
     #setupWorkspaceObservers() {
@@ -217,6 +219,8 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
         // Remove this instance from split view registration array
         const idx = splitViewInstanceOrder.indexOf(this);
         if (idx !== -1) splitViewInstanceOrder.splice(idx, 1);
+        // Remove global event listener
+        window.removeEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
     }
 
     // Unified validation method for all cultures
@@ -268,8 +272,23 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
     }
 
     #handleValidateClick = async () => {
-        await this.#validateAndUpdateResult();
+        // Validate this pane with save
+        await this.#validateAndUpdateResult({ skipSave: false });
+        // Dispatch global event so all panes validate (but skip save in others)
+        window.dispatchEvent(new CustomEvent('custom-validator:validate-all', { detail: { skipSave: true } }));
     };
+
+    #onGlobalValidateAll = async (event: Event) => {
+        // Only validate if this pane is attached and has a document
+        if (this.isConnected && this._documentId) {
+            // If event has detail.skipSave, use it; otherwise default to true
+            let skipSave = true;
+            if (event instanceof CustomEvent && typeof event.detail?.skipSave === 'boolean') {
+                skipSave = event.detail.skipSave;
+            }
+            await this.#validateAndUpdateResult({ skipSave });
+        }
+    }
 
     #getMessageCounts(cultures?: string[]): { errors: number; warnings: number } {
         // If cultures not provided, use all keys in _validationResults
@@ -315,7 +334,14 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
                     const sortedMessages = [...result.messages].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
                     const hasErrorsOrWarnings = result.messages.some(m => m.severity === ValidationSeverity.Error || m.severity === ValidationSeverity.Warning);
                     return html`
-                        <uui-box headline="${culture.toUpperCase()} Validation Results" headline-variant="h5">
+                        <uui-box headline="Validation Results" headline-variant="h5">
+
+                            ${culture !== "default" ? html`
+                                <div slot="header-actions">
+                                    <uui-tag color="default" look="primary">${culture}</uui-tag>
+                                </div>` 
+                            : nothing}
+
                             ${!hasErrorsOrWarnings ? this.#renderSuccessMessage() : nothing}
                             <uui-table aria-label="Validation Messages">
                                 <uui-table-head>

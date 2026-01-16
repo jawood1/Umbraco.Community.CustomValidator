@@ -7,9 +7,6 @@ class v extends f {
   constructor(t) {
     super(t);
   }
-  /**
-   * Always use the POST endpoint for both single and multi-culture validation.
-   */
   async validateDocumentMultipleCultures(t, e) {
     try {
       const a = await (await this.getContext(m))?.getLatestToken(), n = new URL(`/umbraco/management/api/v1/validation/validate/${t}`, window.location.origin), r = await fetch(n.toString(), {
@@ -42,11 +39,9 @@ class v extends f {
       return a;
     }
   }
-  // For compatibility with context, provide a single-culture method that calls the multi-culture one
   async validateDocument(t, e) {
     return (await this.validateDocumentMultipleCultures(t, [e]))[e || "default"];
   }
-  // (Removed duplicate implementation)
 }
 const h = new p(
   "ValidationWorkspaceContext"
@@ -98,4 +93,4 @@ export {
   c as a,
   T as v
 };
-//# sourceMappingURL=validation-workspace-context-DaTwn9M5.js.map
+//# sourceMappingURL=validation-workspace-context-CwidAw2f.js.map
