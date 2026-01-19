@@ -36,39 +36,24 @@ public sealed class DocumentValidationController(
             var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
             var content = umbracoContext.Content.GetById(preview: true, id);
 
-            if (content == null)
+            if (content == null || !validationService.HasValidator(content))
             {
-                // Return empty result for all requested cultures
-                if (request.Cultures is { Count: > 0 })
+                result[DefaultCultureKey] = new ValidationResponse
                 {
-                    foreach (var culture in request.Cultures)
-                    {
-                        result[culture ?? DefaultCultureKey] = new ValidationResponse
-                        {
-                            ContentId = id,
-                            ContentTypeAlias = string.Empty,
-                            HasValidator = false,
-                            Messages = []
-                        };
-                    }
-                }
-                else
-                {
-                    result[DefaultCultureKey] = new ValidationResponse
-                    {
-                        ContentId = id,
-                        ContentTypeAlias = string.Empty,
-                        HasValidator = false,
-                        Messages = []
-                    };
-                }
+                    ContentId = id,
+                    HasValidator = false,
+                    Messages = []
+                };
 
                 return Ok(result);
             }
 
             var cultures = request.Cultures is { Count: > 0 }
                 ? request.Cultures
-                : [null];
+                    .Select(c => string.IsNullOrEmpty(c) || c == "undefined" ? DefaultCultureKey : c)
+                    .Distinct()
+                    .ToList()
+                : [DefaultCultureKey];
 
             foreach (var culture in cultures)
             {
@@ -83,27 +68,30 @@ public sealed class DocumentValidationController(
 
                     var validationMessages = await validationService.ValidateAsync(content);
 
-                    result[culture ?? DefaultCultureKey] = new ValidationResponse
+                    result.TryAdd(culture, new ValidationResponse
                     {
                         ContentId = id,
-                        ContentTypeAlias = content.ContentType.Alias,
-                        HasValidator = validationService.HasValidator(content.ContentType.Alias),
+                        HasValidator = true,
                         Messages = validationMessages
-                    };
+                    });
                 }
                 catch (Exception exCulture)
                 {
                     logger.LogError(exCulture, "Error validating document {DocumentId} with culture {Culture}", id, culture);
 
-                    result[culture ?? DefaultCultureKey] = new ValidationResponse
+                    result.TryAdd(culture, new ValidationResponse
                     {
                         ContentId = id,
-                        ContentTypeAlias = content.ContentType.Alias,
-                        HasValidator = false,
-                        Messages = [new ValidationMessage { Message = $"Validation error: {exCulture.Message}", Severity = ValidationSeverity.Error }]
-                    };
+                        HasValidator = true,
+                        Messages = [
+                            new ValidationMessage {
+                                Message = $"An unexpected error occurred during validation. Please check the logs.", 
+                                Severity = ValidationSeverity.Error
+                            }]
+                    });
                 }
             }
+
             return Ok(result);
         }
         catch (Exception ex)

@@ -49,7 +49,6 @@ interface ValidationMessage {
 
 interface ValidationResult {
     contentId: string;
-    contentTypeAlias: string;
     hasValidator: boolean;
     messages: ValidationMessage[];
 }

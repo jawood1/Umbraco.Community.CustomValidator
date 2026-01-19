@@ -10,7 +10,7 @@ public interface IDocumentValidator<T> where T : class, IPublishedContent
 
 public interface IDocumentValidator
 {
-    string ContentTypeAlias { get; }
+    string NameOfType { get; }
 
     Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content);
 }

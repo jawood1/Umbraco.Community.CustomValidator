@@ -2,5 +2,5 @@
 
 public sealed class DocumentValidationRequest
 {
-    public List<string?>? Cultures { get; set; }
+    public List<string>? Cultures { get; init; }
 }

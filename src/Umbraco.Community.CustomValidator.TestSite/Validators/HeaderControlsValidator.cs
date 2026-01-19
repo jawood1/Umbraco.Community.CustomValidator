@@ -1,32 +1,23 @@
-using Umbraco.Cms.Web.Common.PublishedModels;
+﻿using Umbraco.Cms.Web.Common.PublishedModels;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.TestSite.Validators;
 
-public class ContentPageValidator : BaseDocumentValidator<Content>
+public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
 {
-    public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Content content)
+    public override Task<IEnumerable<ValidationMessage>> ValidateAsync(IHeaderControls content)
     {
         var messages = new List<ValidationMessage>();
 
         // Example validation: Check if home page title is empty
-        if (string.IsNullOrWhiteSpace(content.Title))
+        if (string.IsNullOrWhiteSpace(content.Subtitle))
         {
             messages.Add(new ValidationMessage
             {
-                Message = "Title cannot be empty",
+                Message = "Subtitle empty",
                 Severity = ValidationSeverity.Error
-            });
-        }
-
-        if (content.Title?.Length < 3)
-        {
-            messages.Add(new ValidationMessage
-            {
-                Message = "Title can't be short",
-                Severity = ValidationSeverity.Warning
             });
         }
 

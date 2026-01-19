@@ -22,11 +22,10 @@ internal sealed class ContentPublishingValidationHandler(
 
         foreach (var entity in notification.PublishedEntities)
         {
-            // Check if there's a validator for this content type
-            if (!validationService.HasValidator(entity.ContentType.Alias))
-            {
+            var publishedContent = _umbracoContext.Content?.GetById(true, entity.Id);
+
+            if (publishedContent == null || !validationService.HasValidator(publishedContent))
                 continue;
-            }
 
             var savingCultures = entity.AvailableCultures
                 .Where(culture => notification.IsPublishingCulture(entity, culture)).ToList();
@@ -36,11 +35,6 @@ internal sealed class ContentPublishingValidationHandler(
 
             foreach (var culture in savingCultures)
             {
-                var publishedContent = _umbracoContext.Content?.GetById(true, entity.Id);
-
-                if (publishedContent == null)
-                    continue;
-
                 variationContextAccessor.VariationContext = new VariationContext(culture);
 
                 var validationMessages = await validationService.ValidateAsync(publishedContent);

@@ -9,5 +9,6 @@ public class ValidationComposer : IComposer
     {
         builder.AddDocumentValidator<HomePageValidator>();
         builder.AddDocumentValidator<ContentPageValidator>();
+        builder.AddDocumentValidator<HeaderControlsValidator>();
     }
 }

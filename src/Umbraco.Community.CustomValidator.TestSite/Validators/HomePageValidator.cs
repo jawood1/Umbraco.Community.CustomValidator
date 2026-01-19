@@ -5,7 +5,7 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.TestSite.Validators;
 
-public class HomePageValidator() : BaseDocumentValidator<Home>(Home.ModelTypeAlias)
+public class HomePageValidator() : BaseDocumentValidator<Home>
 {
     public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Home content)
     {

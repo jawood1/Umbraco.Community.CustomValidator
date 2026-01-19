@@ -5,10 +5,10 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
-public abstract class BaseDocumentValidator<T>(string contentTypeAlias) : IDocumentValidator<T>, IDocumentValidator
+public abstract class BaseDocumentValidator<T> : IDocumentValidator<T>, IDocumentValidator
     where T : class, IPublishedContent
 {
-    public required string ContentTypeAlias { get; init; } = contentTypeAlias;
+    public required string NameOfType { get; init; } = typeof(T).Name;
 
     public abstract Task<IEnumerable<ValidationMessage>> ValidateAsync(T content);
 

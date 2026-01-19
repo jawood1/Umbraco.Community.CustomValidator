@@ -47,7 +47,6 @@ export class ValidationApiService extends UmbControllerBase {
             for (const culture of cultures) {
                 fallback[culture || 'default'] = {
                     contentId: id,
-                    contentTypeAlias: '',
                     hasValidator: false,
                     messages: [{ message: `Validation failed: ${(error as Error).message}`, severity: ValidationSeverity.Error }]
                 };

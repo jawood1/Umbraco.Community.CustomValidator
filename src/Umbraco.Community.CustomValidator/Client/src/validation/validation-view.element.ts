@@ -329,7 +329,10 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
                     const result = this._validationResults[culture];
                     if (!result) return nothing;
                     if (!result.hasValidator) {
-                        return html`<uui-box headline="${culture.toUpperCase()}" headline-variant="h5">${this.#renderNoValidatorState()}</uui-box>`;
+                        return html`
+                        <uui-box headline="Status" headline-variant="h5">
+                            <p>No custom validation configured for this document.</p>
+                        </uui-box>`;
                     }
                     const sortedMessages = [...result.messages].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
                     const hasErrorsOrWarnings = result.messages.some(m => m.severity === ValidationSeverity.Error || m.severity === ValidationSeverity.Warning);
@@ -377,15 +380,6 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
                     <uui-loader></uui-loader>
                     <span>Validating...</span>
                 </div>
-            </uui-box>
-        `;
-    }
-
-    #renderNoValidatorState(_culture?: string) {
-        const result = _culture ? this._validationResults[_culture] : undefined;
-        return html`
-            <uui-box headline="Status" headline-variant="h5">
-                <p>No validation configured for this content type (${result?.contentTypeAlias ?? ''}).</p>
             </uui-box>
         `;
     }

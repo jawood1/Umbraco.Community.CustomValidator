@@ -9,7 +9,7 @@ class v extends f {
   }
   async validateDocumentMultipleCultures(t, e) {
     try {
-      const a = await (await this.getContext(m))?.getLatestToken(), n = new URL(`/umbraco/management/api/v1/validation/validate/${t}`, window.location.origin), r = await fetch(n.toString(), {
+      const a = await (await this.getContext(m))?.getLatestToken(), i = new URL(`/umbraco/management/api/v1/validation/validate/${t}`, window.location.origin), r = await fetch(i.toString(), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${a}`,
@@ -20,8 +20,8 @@ class v extends f {
       if (!r.ok) {
         let l = `Validation request failed: ${r.status} ${r.statusText}`;
         try {
-          const i = await r.json();
-          i.detail ? l = i.detail : i.title ? l = i.title : i.message && (l = i.message);
+          const n = await r.json();
+          n.detail ? l = n.detail : n.title ? l = n.title : n.message && (l = n.message);
         } catch {
         }
         throw new Error(l);
@@ -29,10 +29,9 @@ class v extends f {
       return await r.json() || {};
     } catch (s) {
       const a = {};
-      for (const n of e)
-        a[n || "default"] = {
+      for (const i of e)
+        a[i || "default"] = {
           contentId: t,
-          contentTypeAlias: "",
           hasValidator: !1,
           messages: [{ message: `Validation failed: ${s.message}`, severity: c.Error }]
         };
@@ -60,10 +59,10 @@ class d extends f {
   async validateManually(t, e, s) {
     this.#e.setValue(!0);
     try {
-      const a = s && s.length > 0 ? s : [e], n = await this.#a.validateDocumentMultipleCultures(t, a);
-      for (const [r, u] of Object.entries(n))
+      const a = s && s.length > 0 ? s : [e], i = await this.#a.validateDocumentMultipleCultures(t, a);
+      for (const [r, u] of Object.entries(i))
         this.#t.set(r, u);
-      return n;
+      return i;
     } catch (a) {
       throw console.error("Manual validation failed:", a), a;
     } finally {
@@ -82,7 +81,7 @@ class d extends f {
     this.#t.clear();
   }
 }
-const T = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const x = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   VALIDATION_WORKSPACE_CONTEXT: h,
   ValidationWorkspaceContext: d,
@@ -91,6 +90,6 @@ const T = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
 export {
   h as V,
   c as a,
-  T as v
+  x as v
 };
-//# sourceMappingURL=validation-workspace-context-CwidAw2f.js.map
+//# sourceMappingURL=validation-workspace-context-C1nOTYt_.js.map

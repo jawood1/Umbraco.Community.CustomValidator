@@ -4,7 +4,7 @@
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.CustomValidator?color=0273B3)](https://www.nuget.org/packages/Umbraco.Community.CustomValidator)
 [![GitHub license](https://img.shields.io/github/license/jawood1/Umbraco.Community.CustomValidator?color=8AB803)](../LICENSE)
 
-A document type validation framework for Umbraco CMS that provides real-time content validation with a backoffice UI. Display validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.
+This package is a validation framework for Umbraco backoffice that provides real-time content validation for complex business logic. The package displays validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.
 
 ## Features
 
@@ -57,8 +57,6 @@ using Umbraco.Community.CustomValidator.Validation;
 
 public class ArticleValidator : BaseDocumentValidator<Article>
 {
-    public ArticleValidator() : base(Article.ModelTypeAlias) { }
-
     public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Article content)
     {
         var messages = new List<ValidationMessage>();
@@ -141,7 +139,7 @@ The package supports three severity levels:
 
 ## Advanced Usage
 
-### Accessing Umbraco Services
+### Accessing Custom Services
 
 Inject services into your validator constructor:
 
@@ -153,7 +151,7 @@ public class ArticleValidator : BaseDocumentValidator<Article>
 
     public ArticleValidator(
         IMediaService mediaService,
-        IApiService apiService) : base(Article.ModelTypeAlias)
+        IApiService apiService)
     {
         _mediaService = mediaService;
         _apiService = apiService;
@@ -167,9 +165,19 @@ public class ArticleValidator : BaseDocumentValidator<Article>
 }
 ```
 
-### Multi-Culture Validation
+### Validating Compositions 
 
-The validation framework automatically handles culture-specific validation when content has multiple cultures enabled. The validation tab in split-view mode shows results for each culture independently.
+Validate interfaces for reusable validation
+
+```csharp
+public class ArticleValidator : BaseDocumentValidator<IHeaderControls>
+{
+    public override async Task<IEnumerable<ValidationMessage>> ValidateAsync(IHeaderControls content)
+    {
+        // Your common validation logic
+    }
+}
+```
 
 ### Blocking Publishing
 
@@ -180,9 +188,6 @@ When validation errors (`ValidationSeverity.Error`) are present, a notification 
 ### BaseDocumentValidator<T>
 
 Abstract base class for all validators.
-
-**Properties:**
-- `ContentTypeAlias` (string) - The content type alias this validator handles
 
 **Methods:**
 - `ValidateAsync(T content)` - Override this method to implement validation logic
