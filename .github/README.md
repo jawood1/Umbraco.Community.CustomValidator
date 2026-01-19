@@ -45,6 +45,18 @@ Install-Package Umbraco.Community.CustomValidator
 
 ## Quick Start
 
+> **Important:** you must use generated strongly typed models in order to use CustomValidator. `Umbraco:Cms:ModelsBuilder:ModelsMode` **must** be set to either `SourceCodeAuto` or `SourceCodeManual` in your development environment and generated files committed to disk before deploying.
+> 
+> ```json
+> "Umbraco": {
+>  "CMS": {
+>    "ModelsBuilder": {
+>      "ModelsMode": "SourceCodeAuto"
+>    }
+>  }
+>}
+>```
+
 ### 1. Create a Validator
 
 Create a validator by inheriting from `BaseDocumentValidator<T>`:
