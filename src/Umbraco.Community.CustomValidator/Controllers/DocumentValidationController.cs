@@ -96,7 +96,7 @@ public sealed class DocumentValidationController(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error validating document {DocumentId}", id);
+            logger.LogError(ex, "Unexpected error validating document {DocumentId}", id);
 
             return Problem(
                 statusCode: StatusCodes.Status500InternalServerError,
