@@ -57,39 +57,8 @@ public sealed class DocumentValidationController(
 
             foreach (var culture in cultures)
             {
-                try
-                {
-                    var currentCulture = await GetCurrentCultureAsync(culture, content);
-
-                    if (!string.IsNullOrEmpty(currentCulture))
-                    {
-                        variationContextAccessor.VariationContext = new VariationContext(currentCulture);
-                    }
-
-                    var validationMessages = await validationService.ValidateAsync(content);
-
-                    result.TryAdd(culture, new ValidationResponse
-                    {
-                        ContentId = id,
-                        HasValidator = true,
-                        Messages = validationMessages
-                    });
-                }
-                catch (Exception exCulture)
-                {
-                    logger.LogError(exCulture, "Error validating document {DocumentId} with culture {Culture}", id, culture);
-
-                    result.TryAdd(culture, new ValidationResponse
-                    {
-                        ContentId = id,
-                        HasValidator = true,
-                        Messages = [
-                            new ValidationMessage {
-                                Message = $"An unexpected error occurred during validation. Please check the logs.", 
-                                Severity = ValidationSeverity.Error
-                            }]
-                    });
-                }
+                var response = await ValidateForCultureAsync(id, culture, content);
+                result.TryAdd(culture, response);
             }
 
             return Ok(result);
@@ -103,6 +72,43 @@ public sealed class DocumentValidationController(
                 title: "Validation Error",
                 detail: "An exception occurred while validating the document. Please check the logs."
             );
+        }
+    }
+
+    private async Task<ValidationResponse> ValidateForCultureAsync(Guid id, string culture, IPublishedContent content)
+    {
+        try
+        {
+            var currentCulture = await GetCurrentCultureAsync(culture, content);
+
+            if (!string.IsNullOrEmpty(currentCulture))
+            {
+                variationContextAccessor.VariationContext = new VariationContext(currentCulture);
+            }
+
+            var validationMessages = await validationService.ValidateAsync(content);
+
+            return new ValidationResponse
+            {
+                ContentId = id,
+                HasValidator = true,
+                Messages = validationMessages
+            };
+        }
+        catch (Exception exCulture)
+        {
+            logger.LogError(exCulture, "Error validating document {DocumentId} with culture {Culture}", id, culture);
+
+            return new ValidationResponse
+            {
+                ContentId = id,
+                HasValidator = true,
+                Messages = [
+                    new ValidationMessage {
+                        Message = $"An unexpected error occurred during validation. Please check the logs.", 
+                        Severity = ValidationSeverity.Error
+                    }]
+            };
         }
     }
 
