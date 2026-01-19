@@ -34,16 +34,13 @@ internal sealed class ContentPublishingValidationHandler(
                 var savingCultures = entity.AvailableCultures
                     .Where(culture => notification.IsPublishingCulture(entity, culture)).ToList();
 
-                if (savingCultures is not { Count: > 0 })
-                    continue;
-
-                foreach (var culture in savingCultures)
+                if (savingCultures is { Count: > 0 })
                 {
-                    variationContextAccessor.VariationContext = new VariationContext(culture);
-
-                    var validationMessages = await validationService.ValidateAsync(publishedContent);
-                    var errors = validationMessages.Count(m => m.Severity == ValidationSeverity.Error);
-                    errorCount += errors;
+                    errorCount += await ValidateByCulture(publishedContent, savingCultures);
+                }
+                else
+                {
+                    errorCount += await GetErrorCount(publishedContent);
                 }
             }
 
@@ -68,5 +65,24 @@ internal sealed class ContentPublishingValidationHandler(
                 EventMessageType.Error
             ));
         }
+    }
+
+    private async Task<int> ValidateByCulture(IPublishedContent publishedContent, List<string> cultures)
+    {
+        var errorCount = 0;
+
+        foreach (var culture in cultures)
+        {
+            variationContextAccessor.VariationContext = new VariationContext(culture);
+            errorCount += await GetErrorCount(publishedContent);
+        }
+
+        return errorCount;
+    }
+
+    private async Task<int> GetErrorCount(IPublishedContent publishedContent)
+    {
+        var validationMessages = await validationService.ValidateAsync(publishedContent);
+        return validationMessages.Count(m => m.Severity == ValidationSeverity.Error);
     }
 }
