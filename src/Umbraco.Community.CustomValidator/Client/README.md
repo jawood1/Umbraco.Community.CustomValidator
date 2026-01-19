@@ -16,10 +16,12 @@ The frontend is built using:
 src/
 ├── manifest.ts                          # Extension registration
 └── validation/
-    ├── types.ts                        # TypeScript type definitions
-    ├── validation-api.service.ts       # API service for backend communication
-    ├── validation-workspace-context.ts # Shared context/state management
-    └── validation-view.element.ts      # Main UI component
+   ├── types.ts                        # TypeScript type definitions (enums, interfaces)
+   ├── validation-constants.ts         # Constants for delays, severity, etc.
+   ├── validation-utils.ts             # Utility functions for validation logic
+   ├── validation-api.service.ts       # API service for backend communication
+   ├── validation-workspace-context.ts # Shared context/state management
+   └── validation-view.element.ts      # Main UI component (imports types, constants, utils)
 ```
 
 ## Key Components
@@ -31,28 +33,18 @@ Registers extensions with the Umbraco backoffice:
 - **workspaceContext** - Provides shared validation state across the workspace
 - **workspaceView** - Adds the "Validation" tab to document workspaces
 
+
 ### types.ts
 
-Defines TypeScript interfaces and enums:
+Defines all validation-related TypeScript types and enums, such as `ValidationSeverity`, `ValidationMessage`, and `ValidationResult`.
 
-```typescript
-enum ValidationSeverity {
-    Error = 'Error',
-    Warning = 'Warning',
-    Info = 'Info'
-}
+### validation-constants.ts
 
-interface ValidationMessage {
-    message: string;
-    severity: ValidationSeverity;
-}
+Contains constants for delays, severity order, and color mapping. Used throughout the validation UI for consistency.
 
-interface ValidationResult {
-    contentId: string;
-    hasValidator: boolean;
-    messages: ValidationMessage[];
-}
-```
+### validation-utils.ts
+
+Reusable utility functions for validation logic, such as message counting and severity color mapping. Imported by the main view component.
 
 ### validation-api.service.ts
 
@@ -78,47 +70,35 @@ Manages validation state using Umbraco's context API:
   - Observable `isValidating` state for loading indicators
   - Provides context to all components in the workspace
 
+
 ### validation-view.element.ts
 
-The main UI component that renders the validation tab:
+The main UI component for the validation tab. Now imports types, constants, and utility functions from separate files for maintainability.
 
-**Key Features**:
+**Key Features:**
 
-1. **Instance-Based Split View Detection**
-   - Each component instance gets a unique ID from `instanceCounter`
-   - Maps instance ID to variant array index for culture assignment
-   - Ensures correct culture validation in split-view mode
+1. **Separation of Concerns**
+   - Types, constants, and utility functions are imported from their own files.
+   - The main view focuses on UI logic and rendering.
 
-2. **Lifecycle Management**
-   ```typescript
-   connectedCallback()    // Sets up contexts, observers, initial validation
-   willUpdate()           // Memoizes computed properties for performance
-   disconnectedCallback() // Cleans up observers, resets instance counter
-   ```
+2. **Split View & Multi-Culture Support**
+   - Each instance is assigned a culture based on split view registration order.
+   - Validation results are managed per culture and displayed accordingly.
 
-3. **Validation Triggers**
-   - Initial load with delay (avoids save modal)
-   - Document switch detection
-   - Culture/variant change in split view
-   - Manual validation button
-   - Save & Validate button (manual validation)
+3. **Lifecycle Management**
+   - `connectedCallback()`: Sets up contexts, observers, and triggers initial validation.
+   - `disconnectedCallback()`: Cleans up observers and split view registration.
 
-4. **Memoized Properties**
-   - `_sortedMessages` - Messages sorted by severity (Error > Warning > Info)
-   - `_messageCounts` - Count of errors and warnings
+4. **Validation Triggers**
+   - Initial load (with delay)
+   - Document switch
+   - Culture/variant change
+   - Manual validation (Save & Validate button)
 
 5. **UI Rendering**
-   - Success message when no errors/warnings
-   - Color-coded messages by severity
-   - Loading states
-   - Manual validation controls
-   - No custom publish integration (see limitations below)
-
-6. **Split View Support**
-   - Tracks variant changes using `workspace.variants` observable
-   - Assigns culture based on instance ID and variant count
-   - Stores results per culture in shared context
-   - Each pane shows its culture-specific validation
+   - Uses imported constants and utility functions for message sorting, severity color, and counts.
+   - Renders loading, success, and error states per culture.
+   - Shows controls only if a validator is present.
 
 ## State Flow
 
@@ -155,25 +135,11 @@ When content has multiple cultures:
    - Instance 1 → variant[1] (e.g., da-DK)
    - Each validates and displays its assigned culture
 
-## Constants
 
-```typescript
-SAVE_DELAY_MS = 500                  // Delay after save before validation
-INITIAL_VALIDATION_DELAY_MS = 1000   // Delay on initial load
-INSTANCE_RESET_DELAY_MS = 2000       // Delay before resetting instance counter
+## Constants & Utilities
 
-SEVERITY_ORDER = {
-    Error: 0,
-    Warning: 1,
-    Info: 2
-}
-
-SEVERITY_COLOR_MAP = {
-    Error: 'danger',
-    Warning: 'warning',
-    Info: 'default'
-}
-```
+All constants (delays, severity order, color mapping) are now in `validation-constants.ts`.
+All reusable logic (message counting, severity color) is in `validation-utils.ts`.
 
 ## Building
 
@@ -196,12 +162,14 @@ Build output goes to `../wwwroot/App_Plugins/Umbraco.Community.CustomValidator/`
 
 ## Development Notes
 
+
 ### Adding New Features
 
-1. Update types in `types.ts`
-2. Modify API service if backend changes needed
-3. Update context for state management
-4. Enhance UI component with new rendering logic
+1. Update or add types in `types.ts` as needed
+2. Add or update constants in `validation-constants.ts`
+3. Add or update utility functions in `validation-utils.ts`
+4. Modify API service or context if backend/state changes are needed
+5. Enhance the UI component by importing and using new logic
 
 ### Debugging Split View
 
