@@ -11,7 +11,6 @@ public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
     {
         var messages = new List<ValidationMessage>();
 
-        // Example validation: Check if home page title is empty
         if (string.IsNullOrWhiteSpace(content.Subtitle))
         {
             messages.Add(new ValidationMessage

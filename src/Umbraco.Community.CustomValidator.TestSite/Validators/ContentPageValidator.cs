@@ -11,7 +11,6 @@ public class ContentPageValidator : BaseDocumentValidator<Content>
     {
         var messages = new List<ValidationMessage>();
 
-        // Example validation: Check if home page title is empty
         if (string.IsNullOrWhiteSpace(content.Title))
         {
             messages.Add(new ValidationMessage
