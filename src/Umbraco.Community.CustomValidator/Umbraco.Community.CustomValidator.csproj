@@ -20,7 +20,7 @@
 		<PackageReadmeFile>README_nuget.md</PackageReadmeFile>
 		<RepositoryType>git</RepositoryType>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageIcon></PackageIcon>
+		<PackageIcon>logo.png</PackageIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -29,6 +29,13 @@
 		<PackageReference Include="Umbraco.Cms.Api.Common" />
 		<PackageReference Include="Umbraco.Cms.Api.Management"/>
 	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\docs\logo.png">
+		<Pack>True</Pack>
+		<PackagePath>\</PackagePath>
+		</None>
+  	</ItemGroup>
 
 	<ItemGroup>
 		<!-- Dont include the client folder as part of packaging nuget build -->
