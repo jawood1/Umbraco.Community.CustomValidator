@@ -27,8 +27,6 @@ using Umbraco.Community.CustomValidator.Validation;
 
 public class ArticleValidator : BaseDocumentValidator<Article>
 {
-    public ArticleValidator() : base(Article.ModelTypeAlias) { }
-
     public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Article content)
     {
         var messages = new List<ValidationMessage>();
