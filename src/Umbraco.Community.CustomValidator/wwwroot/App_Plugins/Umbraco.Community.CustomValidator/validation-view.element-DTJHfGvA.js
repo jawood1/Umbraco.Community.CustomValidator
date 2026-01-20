@@ -2,7 +2,7 @@ import { nothing as v, html as u, repeat as X, state as y, customElement as B } 
 import { UmbLitElement as J } from "@umbraco-cms/backoffice/lit-element";
 import { UmbTextStyles as Q } from "@umbraco-cms/backoffice/style";
 import { UMB_CONTENT_WORKSPACE_CONTEXT as Z } from "@umbraco-cms/backoffice/content";
-import { V as k, a as c } from "./validation-workspace-context-C1nOTYt_.js";
+import { V as k, a as c } from "./validation-workspace-context-4UeykxAn.js";
 var q = Object.defineProperty, tt = Object.getOwnPropertyDescriptor, M = (t) => {
   throw TypeError(t);
 }, f = (t, e, i, a) => {
@@ -308,4 +308,4 @@ export {
   d as CustomValidatorWorkspaceView,
   d as element
 };
-//# sourceMappingURL=validation-view.element-BEN-vhBz.js.map
+//# sourceMappingURL=validation-view.element-DTJHfGvA.js.map
