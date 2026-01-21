@@ -1,9 +1,9 @@
-import { UmbControllerBase as u } from "@umbraco-cms/backoffice/class-api";
-import { UMB_AUTH_CONTEXT as f } from "@umbraco-cms/backoffice/auth";
-import { UmbContextToken as m } from "@umbraco-cms/backoffice/context-api";
-import { UmbObjectState as g } from "@umbraco-cms/backoffice/observable-api";
+import { UmbControllerBase as d, UmbContextBase as f } from "@umbraco-cms/backoffice/class-api";
+import { UMB_AUTH_CONTEXT as m } from "@umbraco-cms/backoffice/auth";
+import { UmbContextToken as g } from "@umbraco-cms/backoffice/context-api";
+import { UmbObjectState as b, UmbNumberState as p } from "@umbraco-cms/backoffice/observable-api";
 var l = /* @__PURE__ */ ((n) => (n.Error = "Error", n.Warning = "Warning", n.Info = "Info", n))(l || {});
-class p extends u {
+class v extends d {
   constructor(t) {
     super(t), this.baseUrl = `${window.location.origin}/umbraco/management/api/v1/validation`;
   }
@@ -15,7 +15,7 @@ class p extends u {
    */
   async validateDocumentMultipleCultures(t, a) {
     try {
-      const r = await (await this.getContext(f))?.getLatestToken();
+      const r = await (await this.getContext(m))?.getLatestToken();
       if (!r)
         throw new Error("Authentication token not available");
       const s = `${this.baseUrl}/validate/${encodeURIComponent(t)}`, o = await fetch(s, {
@@ -75,31 +75,35 @@ class p extends u {
     return s;
   }
 }
-const d = new m(
-  "ValidationWorkspaceContext"
-);
-class c extends u {
+class c extends f {
   constructor(t) {
-    super(t), this.#a = new p(this), this.#t = /* @__PURE__ */ new Map(), this.#e = new g(!1), this.isValidating = this.#e.asObservable(), this.provideContext(d, this);
+    super(t, u), this.#r = new v(this), this.#t = /* @__PURE__ */ new Map(), this.#a = new b(!1), this.#e = new p(0), this.counter = this.#e.asObservable(), this.isValidating = this.#a.asObservable();
   }
-  #a;
+  #r;
   #t;
+  #a;
   #e;
+  increment() {
+    this.#e.setValue(this.#e.value + 1);
+  }
+  reset() {
+    this.#e.setValue(0);
+  }
   /**
    * Always use the multi-culture POST endpoint. If allCultures is omitted, validates current (single) culture.
    * Results are stored per culture.
    */
   async validateManually(t, a, e) {
-    this.#e.setValue(!0);
+    this.#a.setValue(!0);
     try {
-      const r = e && e.length > 0 ? e : [a], s = await this.#a.validateDocumentMultipleCultures(t, r);
+      const r = e && e.length > 0 ? e : [a], s = await this.#r.validateDocumentMultipleCultures(t, r);
       for (const [o, i] of Object.entries(s))
         this.#t.set(o, i);
       return s;
     } catch (r) {
       throw console.error("Manual validation failed:", r), r;
     } finally {
-      this.#e.setValue(!1);
+      this.#a.setValue(!1);
     }
   }
   getValidationResult(t) {
@@ -114,15 +118,18 @@ class c extends u {
     this.#t.clear();
   }
 }
-const C = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const u = new g(
+  "UmbWorkspaceContext",
+  "ValidationWorkspaceContext"
+), k = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  VALIDATION_WORKSPACE_CONTEXT: d,
+  VALIDATION_WORKSPACE_CONTEXT: u,
   ValidationWorkspaceContext: c,
   api: c
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  d as V,
+  u as V,
   l as a,
-  C as v
+  k as v
 };
-//# sourceMappingURL=validation-workspace-context-4UeykxAn.js.map
+//# sourceMappingURL=validation-workspace-context-CexQJ1Gg.js.map

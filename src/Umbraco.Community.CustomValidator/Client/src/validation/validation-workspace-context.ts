@@ -1,27 +1,32 @@
-import { UmbControllerBase } from '@umbraco-cms/backoffice/class-api';
+import { UmbContextBase } from '@umbraco-cms/backoffice/class-api';
 import type { UmbControllerHost } from '@umbraco-cms/backoffice/controller-api';
 import { ValidationApiService } from './validation-api.service.js';
 import type { ValidationResult } from './types.js';
 import { ValidationSeverity } from './types.js';
 import { UmbContextToken } from '@umbraco-cms/backoffice/context-api';
-import { UmbObjectState } from '@umbraco-cms/backoffice/observable-api';
+import { UmbObjectState, UmbNumberState } from '@umbraco-cms/backoffice/observable-api';
 
-export const VALIDATION_WORKSPACE_CONTEXT = new UmbContextToken<ValidationWorkspaceContext>(
-    'ValidationWorkspaceContext'
-);
-
-export class ValidationWorkspaceContext extends UmbControllerBase {
+export class ValidationWorkspaceContext extends UmbContextBase {
     #apiService = new ValidationApiService(this);
     #validationResults = new Map<string, ValidationResult>();
     #isValidating = new UmbObjectState<boolean>(false);
 
+    #counter = new UmbNumberState(0);
+	readonly counter = this.#counter.asObservable();
+
     public readonly isValidating = this.#isValidating.asObservable();
 
     constructor(host: UmbControllerHost) {
-        super(host);
-
-        this.provideContext(VALIDATION_WORKSPACE_CONTEXT, this);
+        super(host, VALIDATION_WORKSPACE_CONTEXT);
     }
+
+    increment() {
+		this.#counter.setValue(this.#counter.value + 1);
+	}
+
+	reset() {
+		this.#counter.setValue(0);
+	}
 
     /**
      * Always use the multi-culture POST endpoint. If allCultures is omitted, validates current (single) culture.
@@ -62,3 +67,8 @@ export class ValidationWorkspaceContext extends UmbControllerBase {
 }
 
 export { ValidationWorkspaceContext as api };
+
+export const VALIDATION_WORKSPACE_CONTEXT = new UmbContextToken<ValidationWorkspaceContext>(
+    'UmbWorkspaceContext',
+    'ValidationWorkspaceContext'
+);

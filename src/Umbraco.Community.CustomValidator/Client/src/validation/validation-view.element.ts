@@ -30,71 +30,98 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
 const validatedDocuments = new Map<string, boolean>();
 
 // Static array to track registration order of instances for split view
-const splitViewInstanceOrder: CustomValidatorWorkspaceView[] = [];
-let instanceCounter = 0;
+// const splitViewInstanceOrder: CustomValidatorWorkspaceView[] = [];
 
 @customElement('custom-validator-workspace-view')
 export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWorkspaceViewElement {
-    #instanceId: number;
+    #countContext?: typeof VALIDATION_WORKSPACE_CONTEXT.TYPE;
+    
+    @state()
+    private count = 0;
+    
     @state()
     private _documentId?: string;
-
+    
     @state()
     private _validationResults: Record<string, ValidationResult> = {};
+    
     @state()
     private _activeCulture?: string;
-
+    
     @state()
     private _isValidating = false;
-
+    
     @state()
     private _currentCulture?: string;
-
+    
     @state()
     private _cultureReady = false;
-
+    
     #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
     #currentDocumentId?: string;
-
+    #variantObserverSetup = false;
+    
     constructor() {
         super();
-        // Assign unique instance ID for debugging
-        this.#instanceId = instanceCounter++;
-        // Register this instance for split view assignment
-        splitViewInstanceOrder.push(this);
+    
+        this.consumeContext(VALIDATION_WORKSPACE_CONTEXT, (instance) => {
+            if (!instance) return;
+            
+            this.#countContext = instance;
+            this.#observeCounter();
+            instance.increment();
+        });
+        
         this.#setupWorkspaceObservers();
         this.#setupValidationObservers();
-        // Listen for global validate-all event
         window.addEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
     }
-
+    
+    #observeCounter(): void {
+        if (!this.#countContext) return;
+        this.observe(this.#countContext.counter, (count) => {
+            // Convert 1-based counter to 0-based index
+            this.count = count - 1;
+            console.log('Instance index:', this.count, '(from counter:', count + ')');
+            
+            // Try to set up variant observer once we have the count
+            this.#trySetupVariantObserver();
+        });
+    }
+    
     #setupWorkspaceObservers() {
         this.consumeContext(UMB_CONTENT_WORKSPACE_CONTEXT, (workspace) => {
             if (!workspace) return;
             this.#contentWorkspace = workspace;
-            this.#observeVariants(workspace);
             this.#observeDocumentChanges(workspace);
+            
+            // Try to set up variant observer once we have the workspace
+            this.#trySetupVariantObserver();
         });
     }
-
-    #observeVariants(workspace: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE) {
-        // Observe the split view to know which variants are active
+    
+    #trySetupVariantObserver() {
+        // Only set up once, and only when both workspace and count are ready
+        if (this.#variantObserverSetup || !this.#contentWorkspace || this.count < 0) {
+            return;
+        }
+        
+        this.#variantObserverSetup = true;
+        console.log('Setting up variant observer for instance:', this.count);
+        this.#observeVariant(this.#contentWorkspace);
+    }
+    
+    #observeVariant(workspace: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE) {
+        console.log('Observing variant at index:', this.count);
+        
+        // Observe the variant for this specific instance (counter-based)
         this.observe(
-            workspace.splitView.activeVariantsInfo,
-            async (variants) => {
-                if (!variants || variants.length === 0) {
-                    this._currentCulture = undefined;
-                    this._cultureReady = true;
-                    return;
-                }
-
-                // Use registration order to assign variant/culture
-                let myIndex = splitViewInstanceOrder.indexOf(this);
-                // Clamp index to available variants
-                const variantIndex = Math.max(0, Math.min(myIndex, variants.length - 1));
-                const variant = variants[variantIndex];
+            workspace.splitView.activeVariantByIndex(this.count),
+            async (variant) => {
                 const newCulture = variant?.culture ?? undefined;
-
+                console.log(`Instance ${this.count} - Culture:`, newCulture, 'Variant:', variant);
+                
+                // Only update and reload if culture actually changed
                 if (this._currentCulture !== newCulture) {
                     this._currentCulture = newCulture;
                     this._cultureReady = true;
@@ -216,11 +243,12 @@ export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWo
 
     override disconnectedCallback() {
         super.disconnectedCallback();
-        // Remove this instance from split view registration array
-        const idx = splitViewInstanceOrder.indexOf(this);
-        if (idx !== -1) splitViewInstanceOrder.splice(idx, 1);
-        // Remove global event listener
         window.removeEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
+        
+        // Type-safe reset
+        if (this.#countContext) {
+            this.#countContext.reset();
+        }
     }
 
     // Unified validation method for all cultures
