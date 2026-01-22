@@ -1,6 +1,7 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Concurrent;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Interfaces;
@@ -8,34 +9,68 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
-public sealed class DocumentValidationService(
-    IServiceProvider serviceProvider,
-    ILogger<DocumentValidationService> logger)
-{
-    private readonly ConcurrentDictionary<Type, List<string>> _validatorNameCache = new();
 
-    public void ClearValidatorCache() => _validatorNameCache.Clear();
+
+public sealed class DocumentValidationService
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<DocumentValidationService> _logger;
+    private readonly ConcurrentDictionary<Type, List<Type>> _validatorTypeCache = new();
+
+    // Cache validator metadata (type + NameOfType)
+    private Lazy<List<ValidatorMetadata>> _validatorMetadata;
+
+    public DocumentValidationService(
+        IServiceProvider serviceProvider,
+        ILogger<DocumentValidationService> logger)
+    {
+        _serviceProvider = serviceProvider;
+        _logger = logger;
+        _validatorMetadata = CreateValidatorMetadata();
+    }
+
+    public void ClearValidatorCache()
+    {
+        _validatorTypeCache.Clear();
+        _validatorMetadata = CreateValidatorMetadata();
+    }
+
+    private Lazy<List<ValidatorMetadata>> CreateValidatorMetadata()
+    {
+        return new Lazy<List<ValidatorMetadata>>(() =>
+        {
+            // Get all validators once to extract metadata
+            var validators = _serviceProvider.GetServices<IDocumentValidator>();
+            var metadata = validators
+                .Select(v => new ValidatorMetadata
+                {
+                    Type = v.GetType(),
+                    NameOfType = v.NameOfType
+                })
+                .DistinctBy(m => m.Type)
+                .ToList();
+
+            _logger.LogDebug("Discovered {ValidatorCount} validator types", metadata.Count);
+
+            return metadata;
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
 
     public async Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
     {
-        // Get validator names for this content type (cached)
-        var validatorNames = GetOrAddValidatorNamesForContentType(content.GetType());
-
+        var validatorTypes = GetOrAddValidatorTypesForContentType(content.GetType());
         var messages = new List<ValidationMessage>();
 
-        // Get all registered validators from DI
-        var allValidators = serviceProvider.GetServices<IDocumentValidator>();
-
-        foreach (var validatorName in validatorNames)
+        foreach (var validatorType in validatorTypes)
         {
             try
             {
-                // Find the validator with matching name
-                var validator = allValidators.FirstOrDefault(v => v.NameOfType == validatorName);
+                // Resolve validator - creates new instance if Scoped/Transient
+                var validator = _serviceProvider.GetRequiredService(validatorType) as IDocumentValidator;
 
                 if (validator == null)
                 {
-                    logger.LogWarning("Could not find validator for type {ValidatorName}", validatorName);
+                    _logger.LogWarning("Could not resolve validator {ValidatorType}", validatorType.Name);
                     continue;
                 }
 
@@ -43,12 +78,12 @@ public sealed class DocumentValidationService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error executing validator {ValidatorName} for document {DocumentId}",
-                    validatorName, content.Id);
+                _logger.LogError(ex, "Error executing validator {ValidatorType} for document {DocumentId}",
+                    validatorType.Name, content.Id);
 
                 messages.Add(new ValidationMessage
                 {
-                    Message = $"An error occurred while running validation. Please check the logs.",
+                    Message = "An error occurred while running validation. Please check the logs.",
                     Severity = ValidationSeverity.Error
                 });
             }
@@ -59,38 +94,47 @@ public sealed class DocumentValidationService(
 
     public bool HasValidator<T>(T publishedContent) where T : class, IPublishedContent
     {
-        var validatorNames = GetOrAddValidatorNamesForContentType(publishedContent.GetType());
-        return validatorNames.Count > 0;
+        var validatorTypes = GetOrAddValidatorTypesForContentType(publishedContent.GetType());
+        return validatorTypes.Count > 0;
     }
 
-    private List<string> GetOrAddValidatorNamesForContentType(Type contentType)
+    private List<Type> GetOrAddValidatorTypesForContentType(Type contentType)
     {
-        return _validatorNameCache.GetOrAdd(contentType, type =>
+        return _validatorTypeCache.GetOrAdd(contentType, type =>
         {
-            var found = new HashSet<string>();
+            var matchingValidatorTypes = new List<Type>();
+            var allMetadata = _validatorMetadata.Value;
 
-            // Get all registered validators
-            var allValidators = serviceProvider.GetServices<IDocumentValidator>();
-
-            foreach (var validator in allValidators)
+            foreach (var metadata in allMetadata)
             {
                 // Check if validator matches content type by name
-                if (validator.NameOfType == type.Name)
+                if (metadata.NameOfType == type.Name)
                 {
-                    found.Add(validator.NameOfType);
+                    matchingValidatorTypes.Add(metadata.Type);
+                    continue;
                 }
 
                 // Check interfaces
                 foreach (var iface in type.GetInterfaces())
                 {
-                    if (validator.NameOfType == iface.Name)
+                    if (metadata.NameOfType == iface.Name)
                     {
-                        found.Add(validator.NameOfType);
+                        matchingValidatorTypes.Add(metadata.Type);
+                        break;
                     }
                 }
             }
 
-            return found.ToList();
+            _logger.LogDebug("Content type {ContentType} matched {ValidatorCount} validator(s)",
+                type.Name, matchingValidatorTypes.Count);
+
+            return matchingValidatorTypes;
         });
+    }
+
+    private class ValidatorMetadata
+    {
+        public required Type Type { get; init; }
+        public required string NameOfType { get; init; }
     }
 }
