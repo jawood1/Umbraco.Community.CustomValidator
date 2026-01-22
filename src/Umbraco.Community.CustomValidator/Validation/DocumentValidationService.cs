@@ -7,6 +7,13 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
+/// <summary>
+/// Provides services for validating published content using registered document validators.
+/// </summary>
+/// <remarks>This service manages a collection of document validators and coordinates their execution against
+/// published content. It supports asynchronous validation and caching of validators for improved performance. Thread
+/// safety is ensured for validator cache operations
+/// </remarks>
 public sealed class DocumentValidationService
 {
     private readonly Dictionary<string, IDocumentValidator> _validators;
@@ -23,6 +30,15 @@ public sealed class DocumentValidationService
 
     public void ClearValidatorCache() => _validatorCache.Clear();
 
+    /// <summary>
+    /// Validates the specified content using all applicable custom validators.
+    /// </summary>
+    /// <remarks>If a validator throws an exception during execution, the error is logged and a generic
+    /// validation error message is added to the results. Validation continues for remaining validators even if one
+    /// fails.</remarks>
+    /// <param name="content">The content item to validate. Cannot be null.</param>
+    /// <returns>A collection of validation messages produced by the validators. The collection may be empty if no validation
+    /// issues are found.</returns>
     public async Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
     {
         var validators = GetOrAddValidatorsForType(content.GetType());
