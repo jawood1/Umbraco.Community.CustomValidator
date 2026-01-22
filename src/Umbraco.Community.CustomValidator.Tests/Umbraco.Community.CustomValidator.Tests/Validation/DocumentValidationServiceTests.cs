@@ -57,17 +57,17 @@ public class DocumentValidationServiceTests
     [Test]
     public async Task ValidateAsync_WithMatchingValidator_ExecutesValidation()
     {
-        // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validatorMock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ReturnsAsync(new List<ValidationMessage>
+        // Arrange - Use real validator instead of mock
+        var validator = new TestHomePageValidator
+        {
+            MessagesToReturn = new List<ValidationMessage>
             {
                 new() { Message = "Error 1", Severity = ValidationSeverity.Error }
-            });
+            }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
+        _services.AddSingleton(validator);
+        _services.AddSingleton<IDocumentValidator>(sp => validator);
 
         _serviceProvider = _services.BuildServiceProvider();
         _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
@@ -79,33 +79,33 @@ public class DocumentValidationServiceTests
         // Assert
         Assert.That(result.Count(), Is.EqualTo(1));
         Assert.That(result.First().Message, Is.EqualTo("Error 1"));
-        validatorMock.Verify(v => v.ValidateAsync(It.IsAny<IPublishedContent>()), Times.Once);
     }
+
 
     [Test]
     public async Task ValidateAsync_WithMultipleValidators_ExecutesAll()
     {
-        // Arrange
-        var validator1Mock = new Mock<IDocumentValidator>();
-        validator1Mock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validator1Mock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ReturnsAsync(new List<ValidationMessage>
+        // Arrange - Use real validators instead of mocks
+        var validator1 = new TestHomePageValidator
+        {
+            MessagesToReturn = new List<ValidationMessage>
             {
                 new() { Message = "Error 1", Severity = ValidationSeverity.Error }
-            });
+            }
+        };
 
-        var validator2Mock = new Mock<IDocumentValidator>();
-        validator2Mock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validator2Mock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ReturnsAsync(new List<ValidationMessage>
+        var validator2 = new TestHomePageValidator2
+        {
+            MessagesToReturn = new List<ValidationMessage>
             {
                 new() { Message = "Warning 1", Severity = ValidationSeverity.Warning }
-            });
+            }
+        };
 
-        _services.AddSingleton(validator1Mock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validator1Mock.Object);
-        _services.AddSingleton(validator2Mock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validator2Mock.Object);
+        _services.AddSingleton(validator1);
+        _services.AddSingleton<IDocumentValidator>(sp => validator1);
+        _services.AddSingleton(validator2);
+        _services.AddSingleton<IDocumentValidator>(sp => validator2);
 
         _serviceProvider = _services.BuildServiceProvider();
         _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
@@ -119,6 +119,18 @@ public class DocumentValidationServiceTests
         Assert.That(result.Any(m => m.Message == "Error 1"), Is.True);
         Assert.That(result.Any(m => m.Message == "Warning 1"), Is.True);
     }
+
+    private class TestHomePageValidator2 : IDocumentValidator
+    {
+        public string NameOfType => "IHomePage";
+        public List<ValidationMessage> MessagesToReturn { get; set; } = new();
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(MessagesToReturn);
+        }
+    }
+
 
     [Test]
     public async Task ValidateAsync_ValidatorThrowsException_ReturnsErrorMessage()
@@ -178,22 +190,14 @@ public class DocumentValidationServiceTests
     [Test]
     public async Task ValidateAsync_WithInterfaceMatch_ExecutesValidator()
     {
-        // Arrange - Validator targets interface, content implements it
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IBasePage");
-        validatorMock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ReturnsAsync(new List<ValidationMessage>
-            {
-                new() { Message = "Interface validation", Severity = ValidationSeverity.Info }
-            });
+        var validator = new TestInterfaceValidator();
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
+        _services.AddSingleton(validator);
+        _services.AddSingleton<IDocumentValidator>(sp => validator);
 
         _serviceProvider = _services.BuildServiceProvider();
         _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
 
-        // Use the combined interface
         var content = CreateMockContent<IHomePageWithBase>();
 
         // Act
@@ -362,17 +366,13 @@ public class DocumentValidationServiceTests
     {
         // Arrange
         var callCount = 0;
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validatorMock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ReturnsAsync(() =>
-            {
-                callCount++;
-                return new List<ValidationMessage>();
-            });
 
-        // Register as scoped
-        _services.AddScoped<TestValidator>();
+        // Register a factory that creates a new validator each time and increments counter
+        _services.AddScoped<TestValidator>(sp =>
+        {
+            callCount++;
+            return new TestValidator();
+        });
         _services.AddScoped<IDocumentValidator>(sp => sp.GetRequiredService<TestValidator>());
 
         _serviceProvider = _services.BuildServiceProvider();
@@ -392,7 +392,7 @@ public class DocumentValidationServiceTests
             await sut2.ValidateAsync(content);
         }
 
-        // Assert - Should have been called twice (different instances)
+        // Assert - Should have been called twice (different scopes = different instances)
         Assert.That(callCount, Is.EqualTo(2));
     }
 
@@ -481,6 +481,30 @@ public class DocumentValidationServiceTests
         {
             CallCount++;
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
+        }
+    }
+
+    private class TestHomePageValidator : IDocumentValidator
+    {
+        public string NameOfType => "IHomePage";
+        public List<ValidationMessage> MessagesToReturn { get; set; } = new();
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(MessagesToReturn);
+        }
+    }
+
+    private class TestInterfaceValidator : IDocumentValidator
+    {
+        public string NameOfType => "IBasePage";
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
+            {
+                new() { Message = "Interface validation", Severity = ValidationSeverity.Info }
+            });
         }
     }
 
