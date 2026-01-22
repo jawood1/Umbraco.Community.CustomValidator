@@ -74,7 +74,7 @@ internal sealed class ContentValidationNotificationHandler(
                     .Where(culture => notification.IsPublishingCulture(entity, culture))
                     .ToList();
 
-                errorCount += await ValidateAndCacheDocument(publishedContent, publishingCultures);
+                errorCount += await ValidateDocument(publishedContent, publishingCultures);
             }
 
             if (errorCount > 0)
@@ -103,7 +103,7 @@ internal sealed class ContentValidationNotificationHandler(
     /// <param name="publishedContent">The content to validate</param>
     /// <param name="cultures">List of cultures to validate. Empty list means invariant content.</param>
     /// <returns>Total count of validation errors</returns>
-    private async Task<int> ValidateAndCacheDocument(IPublishedContent publishedContent, List<string> cultures)
+    private async Task<int> ValidateDocument(IPublishedContent publishedContent, List<string> cultures)
     {
         var errorCount = 0;
 
