@@ -1,25 +1,25 @@
-import { nothing as m, html as r, repeat as H, state as _, customElement as K } from "@umbraco-cms/backoffice/external/lit";
-import { UmbLitElement as X } from "@umbraco-cms/backoffice/lit-element";
-import { UmbTextStyles as q } from "@umbraco-cms/backoffice/style";
-import { UMB_CONTENT_WORKSPACE_CONTEXT as F } from "@umbraco-cms/backoffice/content";
+import { LitElement as H, nothing as m, html as r, repeat as K, state as _, customElement as X } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as q } from "@umbraco-cms/backoffice/element-api";
+import { UmbTextStyles as F } from "@umbraco-cms/backoffice/style";
+import { UMB_CONTENT_WORKSPACE_CONTEXT as J } from "@umbraco-cms/backoffice/content";
 import { VALIDATION_WORKSPACE_CONTEXT as k } from "./validation-workspace-context-C5LC-9vh.js";
-var l = /* @__PURE__ */ ((t) => (t.Error = "Error", t.Warning = "Warning", t.Info = "Info", t))(l || {}), J = Object.defineProperty, Q = Object.getOwnPropertyDescriptor, O = (t) => {
+var l = /* @__PURE__ */ ((t) => (t.Error = "Error", t.Warning = "Warning", t.Info = "Info", t))(l || {}), Q = Object.defineProperty, Z = Object.getOwnPropertyDescriptor, M = (t) => {
   throw TypeError(t);
 }, v = (t, e, i, o) => {
-  for (var d = o > 1 ? void 0 : o ? Q(e, i) : e, S = t.length - 1, V; S >= 0; S--)
+  for (var d = o > 1 ? void 0 : o ? Z(e, i) : e, S = t.length - 1, V; S >= 0; S--)
     (V = t[S]) && (d = (o ? V(e, i, d) : V(d)) || d);
-  return o && d && J(e, i, d), d;
-}, R = (t, e, i) => e.has(t) || O("Cannot " + i), n = (t, e, i) => (R(t, e, "read from private field"), e.get(t)), c = (t, e, i) => e.has(t) ? O("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), g = (t, e, i, o) => (R(t, e, "write to private field"), e.set(t, i), i), s = (t, e, i) => (R(t, e, "access private method"), i), f, h, y, w, p, a, M, I, $, A, D, T, C, x, b, L, E, N, P, U, Y, z, B, G;
-const Z = 500, j = 1e3, W = {
+  return o && d && Q(e, i, d), d;
+}, R = (t, e, i) => e.has(t) || M("Cannot " + i), n = (t, e, i) => (R(t, e, "read from private field"), e.get(t)), c = (t, e, i) => e.has(t) ? M("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), g = (t, e, i, o) => (R(t, e, "write to private field"), e.set(t, i), i), s = (t, e, i) => (R(t, e, "access private method"), i), f, h, y, w, p, a, O, I, $, A, D, T, C, x, b, L, E, N, P, U, Y, z, B, G;
+const j = 500, tt = 1e3, W = {
   [l.Error]: 0,
   [l.Warning]: 1,
   [l.Info]: 2
-}, tt = {
+}, et = {
   [l.Error]: "danger",
   [l.Warning]: "warning",
   [l.Info]: "default"
 };
-let u = class extends X {
+let u = class extends q(H) {
   constructor() {
     super(), c(this, a), c(this, f), c(this, h), c(this, y), c(this, w, !1), c(this, p, !1), this.instanceCount = 0, this._isValidating = !1, this._cultureReady = !1, c(this, x, async () => {
       await s(this, a, C).call(this, { skipSave: !1 }), window.dispatchEvent(new CustomEvent("custom-validator:validate-all", { detail: { skipSave: !0 } }));
@@ -32,7 +32,7 @@ let u = class extends X {
       t && (g(this, f, t), this.observe(t.instanceCounter, (e) => {
         n(this, p) || (g(this, p, !0), this.instanceCount = e, t.incrementInstance(), s(this, a, I).call(this));
       }));
-    }), s(this, a, M).call(this), s(this, a, T).call(this), window.addEventListener("custom-validator:validate-all", n(this, b));
+    }), s(this, a, O).call(this), s(this, a, T).call(this), window.addEventListener("custom-validator:validate-all", n(this, b));
   }
   willUpdate(t) {
     super.willUpdate(t), t.has("_validationResult");
@@ -67,8 +67,8 @@ y = /* @__PURE__ */ new WeakMap();
 w = /* @__PURE__ */ new WeakMap();
 p = /* @__PURE__ */ new WeakMap();
 a = /* @__PURE__ */ new WeakSet();
-M = function() {
-  this.consumeContext(F, (t) => {
+O = function() {
+  this.consumeContext(J, (t) => {
     t && (g(this, h, t), s(this, a, A).call(this, t), s(this, a, I).call(this));
   });
 };
@@ -112,14 +112,14 @@ C = async function(t = {}) {
       if (!e) return;
       const i = async () => {
         try {
-          !t.skipSave && n(this, h)?.requestSubmit && (await n(this, h).requestSubmit(), await s(this, a, E).call(this, Z));
+          !t.skipSave && n(this, h)?.requestSubmit && (await n(this, h).requestSubmit(), await s(this, a, E).call(this, j));
           const o = await e.validateManually(this._documentId, this._currentCulture);
           this._validationResult = o;
         } catch (o) {
           console.debug("Validation skipped:", o);
         }
       };
-      t.useDelay && await s(this, a, E).call(this, j), await i();
+      t.useDelay && await s(this, a, E).call(this, tt), await i();
     } catch (e) {
       console.error("Failed to validate and update result:", e);
     }
@@ -136,7 +136,7 @@ E = function(t) {
   return new Promise((e) => setTimeout(e, t));
 };
 N = function(t) {
-  return tt[t];
+  return et[t];
 };
 P = function() {
   if (this._isValidating || !this._validationResult)
@@ -157,7 +157,7 @@ P = function() {
                         <uui-table-head-cell style="width: 120px;">Severity</uui-table-head-cell>
                         <uui-table-head-cell>Message</uui-table-head-cell>
                     </uui-table-head>
-                    ${H(
+                    ${K(
     e ?? [],
     (i) => i.message,
     (i) => r`
@@ -228,7 +228,7 @@ G = function() {
             </uui-button-group>
         `;
 };
-u.styles = [q];
+u.styles = [F];
 v([
   _()
 ], u.prototype, "instanceCount", 2);
@@ -248,10 +248,10 @@ v([
   _()
 ], u.prototype, "_cultureReady", 2);
 u = v([
-  K("custom-validator-workspace-view")
+  X("custom-validator-workspace-view")
 ], u);
 export {
   u as CustomValidatorWorkspaceView,
   u as element
 };
-//# sourceMappingURL=validation-view.element-BP0PsCak.js.map
+//# sourceMappingURL=validation-view.element-E52UzQtV.js.map

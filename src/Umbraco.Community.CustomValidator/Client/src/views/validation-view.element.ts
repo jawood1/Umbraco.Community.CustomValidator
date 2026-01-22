@@ -1,8 +1,7 @@
-import { customElement, state, html, nothing, repeat, type PropertyValues } from '@umbraco-cms/backoffice/external/lit';
-import { UmbLitElement } from '@umbraco-cms/backoffice/lit-element';
+import { customElement, state, html, nothing, repeat, LitElement, type PropertyValues } from '@umbraco-cms/backoffice/external/lit';
+import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
-import type { UmbWorkspaceViewElement } from '@umbraco-cms/backoffice/workspace';
 import { VALIDATION_WORKSPACE_CONTEXT } from '../contexts/validation-workspace-context.js';
 import type { ValidationResult, NotificationColor } from '../validation/types.js';
 import { ValidationSeverity } from '../validation/types.js';
@@ -23,7 +22,7 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
 } as const;
 
 @customElement('custom-validator-workspace-view')
-export class CustomValidatorWorkspaceView extends UmbLitElement implements UmbWorkspaceViewElement {
+export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     #countContext?: typeof VALIDATION_WORKSPACE_CONTEXT.TYPE;
     #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
     #currentDocumentId?: string;

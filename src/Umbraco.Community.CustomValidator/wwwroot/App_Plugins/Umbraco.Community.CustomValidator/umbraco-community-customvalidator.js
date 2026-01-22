@@ -17,7 +17,7 @@ const i = [
     type: "workspaceView",
     alias: "CustomValidator.WorkspaceView.Validation",
     name: "Validation Workspace View",
-    element: () => import("./validation-view.element-BP0PsCak.js"),
+    element: () => import("./validation-view.element-E52UzQtV.js"),
     weight: 1,
     meta: {
       label: "Validation",
