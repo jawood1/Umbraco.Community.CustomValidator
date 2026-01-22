@@ -41,7 +41,7 @@ public sealed class DocumentValidationService
 
                 messages.Add(new ValidationMessage
                 {
-                    Message = $"An error occurred while running validation for {validator.GetType().Name}.",
+                    Message = $"An error occurred while running validation. Please check the logs.",
                     Severity = ValidationSeverity.Error
                 });
             }

@@ -7,10 +7,9 @@ using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Extensions;
 using Umbraco.Community.CustomValidator.Services;
 using Umbraco.Community.CustomValidator.Validation;
+using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Notifications;
-
-using Umbraco.Community.CustomValidator.Models;
 
 internal sealed class ContentValidationNotificationHandler(
     ValidationCacheService cacheService,
