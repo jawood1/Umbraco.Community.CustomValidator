@@ -109,6 +109,7 @@ public class ArticleValidator : BaseDocumentValidator<Article>
 
 Create a composer to register your validator:
 
+#### Singleton (Default - Best for Most Validators)
 ```csharp
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Community.CustomValidator.Extensions;
@@ -122,13 +123,31 @@ public class ValidationComposer : IComposer
 }
 ```
 
-Or directly from the service collection:
+#### Scoped (For Database or Umbraco Service Dependencies)
 ```csharp
-using Umbraco.Cms.Core.Composing;
-using Umbraco.Community.CustomValidator.Extensions;
-
-builder.Services.AddDocumentValidator<ArticleValidator>();
+public class ValidationComposer : IComposer
+{
+    public void Compose(IUmbracoBuilder builder)
+    {
+        // Use scoped when validator needs IContentService, DbContext, etc.
+        builder.AddScopedDocumentValidator<ProductValidator>();
+    }
+}
 ```
+
+#### Direct Service Collection Registration
+```csharp
+// Singleton
+builder.Services.AddDocumentValidator<ArticleValidator>();
+
+// Scoped
+builder.Services.AddScopedDocumentValidator<ProductValidator>();
+```
+
+**When to use each:**
+- **Singleton**: Stateless validators (no dependencies or only logger) - *Default, best performance*
+- **Scoped**: Validators needing `IContentService`, `DbContext`, or other per-request services
+- **Transient**: Rarely needed, use `AddTransientDocumentValidator<T>()` if required
 
 ### 3. Use the Validation Tab
 

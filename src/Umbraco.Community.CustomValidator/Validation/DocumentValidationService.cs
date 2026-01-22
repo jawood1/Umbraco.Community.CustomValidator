@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.CustomValidator.Enums;
@@ -7,53 +8,43 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
-/// <summary>
-/// Provides services for validating published content using registered document validators.
-/// </summary>
-/// <remarks>This service manages a collection of document validators and coordinates their execution against
-/// published content. It supports asynchronous validation and caching of validators for improved performance. Thread
-/// safety is ensured for validator cache operations
-/// </remarks>
-public sealed class DocumentValidationService
+public sealed class DocumentValidationService(
+    IServiceProvider serviceProvider,
+    ILogger<DocumentValidationService> logger)
 {
-    private readonly Dictionary<string, IDocumentValidator> _validators;
-    private readonly ILogger<DocumentValidationService> _logger;
-    private readonly ConcurrentDictionary<Type, List<IDocumentValidator>> _validatorCache = new();
+    private readonly ConcurrentDictionary<Type, List<string>> _validatorNameCache = new();
 
-    public DocumentValidationService(
-        IEnumerable<IDocumentValidator> validators,
-        ILogger<DocumentValidationService> logger)
-    {
-        _validators = validators.ToDictionary(v => v.NameOfType, v => v);
-        _logger = logger;
-    }
+    public void ClearValidatorCache() => _validatorNameCache.Clear();
 
-    public void ClearValidatorCache() => _validatorCache.Clear();
-
-    /// <summary>
-    /// Validates the specified content using all applicable custom validators.
-    /// </summary>
-    /// <remarks>If a validator throws an exception during execution, the error is logged and a generic
-    /// validation error message is added to the results. Validation continues for remaining validators even if one
-    /// fails.</remarks>
-    /// <param name="content">The content item to validate. Cannot be null.</param>
-    /// <returns>A collection of validation messages produced by the validators. The collection may be empty if no validation
-    /// issues are found.</returns>
     public async Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
     {
-        var validators = GetOrAddValidatorsForType(content.GetType());
+        // Get validator names for this content type (cached)
+        var validatorNames = GetOrAddValidatorNamesForContentType(content.GetType());
 
         var messages = new List<ValidationMessage>();
 
-        foreach (var validator in validators)
+        // Get all registered validators from DI
+        var allValidators = serviceProvider.GetServices<IDocumentValidator>();
+
+        foreach (var validatorName in validatorNames)
         {
             try
             {
+                // Find the validator with matching name
+                var validator = allValidators.FirstOrDefault(v => v.NameOfType == validatorName);
+
+                if (validator == null)
+                {
+                    logger.LogWarning("Could not find validator for type {ValidatorName}", validatorName);
+                    continue;
+                }
+
                 messages.AddRange(await validator.ValidateAsync(content));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error executing custom validator for {ValidatorType}, document ID {DocumentId}", validator.GetType().Name, content.Id);
+                logger.LogError(ex, "Error executing validator {ValidatorName} for document {DocumentId}",
+                    validatorName, content.Id);
 
                 messages.Add(new ValidationMessage
                 {
@@ -68,25 +59,38 @@ public sealed class DocumentValidationService
 
     public bool HasValidator<T>(T publishedContent) where T : class, IPublishedContent
     {
-        var validators = GetOrAddValidatorsForType(publishedContent.GetType());
-        return validators.Count > 0;
+        var validatorNames = GetOrAddValidatorNamesForContentType(publishedContent.GetType());
+        return validatorNames.Count > 0;
     }
 
-    private List<IDocumentValidator> GetOrAddValidatorsForType(Type type) =>
-        _validatorCache.GetOrAdd(type, t =>
+    private List<string> GetOrAddValidatorNamesForContentType(Type contentType)
+    {
+        return _validatorNameCache.GetOrAdd(contentType, type =>
         {
-            var found = new HashSet<IDocumentValidator>();
+            var found = new HashSet<string>();
 
-            if (_validators.TryGetValue(t.Name, out var typeValidator))
-                found.Add(typeValidator);
+            // Get all registered validators
+            var allValidators = serviceProvider.GetServices<IDocumentValidator>();
 
-            foreach (var iface in t.GetInterfaces())
+            foreach (var validator in allValidators)
             {
-                if (_validators.TryGetValue(iface.Name, out var ifaceValidator))
-                    found.Add(ifaceValidator);
+                // Check if validator matches content type by name
+                if (validator.NameOfType == type.Name)
+                {
+                    found.Add(validator.NameOfType);
+                }
+
+                // Check interfaces
+                foreach (var iface in type.GetInterfaces())
+                {
+                    if (validator.NameOfType == iface.Name)
+                    {
+                        found.Add(validator.NameOfType);
+                    }
+                }
             }
 
             return found.ToList();
         });
-
+    }
 }
