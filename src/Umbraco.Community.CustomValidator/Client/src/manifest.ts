@@ -6,7 +6,7 @@ export const manifests : Array<UmbExtensionManifest> = [
         type: "workspaceContext",
         alias: "CustomValidator.WorkspaceContext.Validation",
         name: "Validation Workspace Context",
-        api: () => import("./validation/validation-workspace-context.js"),
+        api: () => import("./contexts/validation-workspace-context.js"),
         conditions: [
             {
                 alias: UMB_WORKSPACE_CONDITION_ALIAS,
@@ -18,7 +18,7 @@ export const manifests : Array<UmbExtensionManifest> = [
         type: "workspaceView",
         alias: "CustomValidator.WorkspaceView.Validation",
         name: "Validation Workspace View",
-        element: () => import("./validation/validation-view.element.js"),
+        element: () => import("./views/validation-view.element.js"),
         weight: 1,
         meta: {
             label: "Validation",

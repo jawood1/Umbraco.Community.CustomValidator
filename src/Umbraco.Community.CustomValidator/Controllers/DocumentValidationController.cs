@@ -6,8 +6,8 @@ using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Web;
-using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Models;
+using Umbraco.Community.CustomValidator.Services;
 using Umbraco.Community.CustomValidator.Validation;
 using Umbraco.Extensions;
 
@@ -17,6 +17,7 @@ namespace Umbraco.Community.CustomValidator.Controllers;
 [ApiExplorerSettings(GroupName = "Document Validation API")]
 public sealed class DocumentValidationController(
     DocumentValidationService validationService,
+    ValidationCacheService cacheService,
     IUmbracoContextAccessor umbracoContextAccessor,
     IVariationContextAccessor variationContextAccessor,
     ILanguageService languageService,
@@ -24,44 +25,41 @@ public sealed class DocumentValidationController(
     : ManagementApiControllerBase
 {
 
-    private const string DefaultCultureKey = "default";
-
-    [HttpPost("validate/{id:guid}")]
-    public async Task<IActionResult> ValidateDocument(Guid id, [FromBody] DocumentValidationRequest request)
+    [HttpGet("validate/{id:guid}")]
+    public async Task<IActionResult> ValidateDocument(Guid id, [FromQuery] string? culture)
     {
-        var result = new Dictionary<string, ValidationResponse>();
-
         try
         {
+
+            if (cacheService.TryGetCached(id, culture, out var cachedResponse))
+            {
+                logger.LogDebug("Returning cached validation for document {DocumentId}, culture: {Culture}",
+                    id, culture ?? "invariant");
+                return Ok(cachedResponse);
+            }
+
             var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
             var content = umbracoContext.Content.GetById(preview: true, id);
 
             if (content == null || !validationService.HasValidator(content))
             {
-                result[DefaultCultureKey] = new ValidationResponse
+                var noValidatorResponse = new ValidationResponse
                 {
                     ContentId = id,
                     HasValidator = false,
                     Messages = []
                 };
 
-                return Ok(result);
+                cacheService.SetCache(id, culture, noValidatorResponse);
+
+                return Ok(noValidatorResponse);
             }
 
-            var cultures = request.Cultures is { Count: > 0 }
-                ? request.Cultures
-                    .Select(c => string.IsNullOrEmpty(c) || c == "undefined" ? DefaultCultureKey : c)
-                    .Distinct()
-                    .ToList()
-                : [DefaultCultureKey];
+            var response = await ValidateDocument(id, culture, content);
 
-            foreach (var culture in cultures)
-            {
-                var response = await ValidateForCultureAsync(id, culture, content);
-                result.TryAdd(culture, response);
-            }
+            cacheService.SetCache(id, culture, response);
 
-            return Ok(result);
+            return Ok(response);
         }
         catch (Exception ex)
         {
@@ -75,50 +73,32 @@ public sealed class DocumentValidationController(
         }
     }
 
-    private async Task<ValidationResponse> ValidateForCultureAsync(Guid id, string culture, IPublishedContent content)
+    private async Task<ValidationResponse> ValidateDocument(Guid id, string? culture, IPublishedContent content)
     {
-        try
+        var currentCulture = await GetCurrentCultureAsync(culture, content);
+
+        if (!string.IsNullOrEmpty(currentCulture))
         {
-            var currentCulture = await GetCurrentCultureAsync(culture, content);
-
-            if (!string.IsNullOrEmpty(currentCulture))
-            {
-                variationContextAccessor.VariationContext = new VariationContext(currentCulture);
-            }
-
-            var validationMessages = await validationService.ValidateAsync(content);
-
-            return new ValidationResponse
-            {
-                ContentId = id,
-                HasValidator = true,
-                Messages = validationMessages
-            };
+            variationContextAccessor.VariationContext = new VariationContext(currentCulture);
         }
-        catch (Exception exCulture)
+
+        var validationMessages = await validationService.ValidateAsync(content);
+
+        return new ValidationResponse
         {
-            logger.LogError(exCulture, "Error validating document {DocumentId} with culture {Culture}", id, culture);
-
-            return new ValidationResponse
-            {
-                ContentId = id,
-                HasValidator = true,
-                Messages = [
-                    new ValidationMessage {
-                        Message = $"An unexpected error occurred during validation. Please check the logs.", 
-                        Severity = ValidationSeverity.Error
-                    }]
-            };
-        }
+            ContentId = id,
+            HasValidator = true,
+            Messages = validationMessages
+        };
     }
 
-    private async Task<string?> GetCurrentCultureAsync(string? culture, IPublishedContent? content = null)
+    private async Task<string?> GetCurrentCultureAsync(string? culture, IPublishedContent content)
     {
         var currentCulture = string.IsNullOrWhiteSpace(culture)
             ? content?.GetCultureFromDomains()
             : culture;
 
-        if (string.IsNullOrEmpty(currentCulture) || culture == "undefined")
+        if (string.IsNullOrEmpty(currentCulture))
         {
             currentCulture = await languageService.GetDefaultIsoCodeAsync();
         }

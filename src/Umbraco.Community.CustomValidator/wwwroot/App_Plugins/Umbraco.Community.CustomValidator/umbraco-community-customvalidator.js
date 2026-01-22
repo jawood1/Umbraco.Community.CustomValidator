@@ -1,14 +1,14 @@
-import { UMB_WORKSPACE_CONDITION_ALIAS as t } from "@umbraco-cms/backoffice/workspace";
-import { umbExtensionsRegistry as o } from "@umbraco-cms/backoffice/extension-registry";
+import { UMB_WORKSPACE_CONDITION_ALIAS as a } from "@umbraco-cms/backoffice/workspace";
+import { umbExtensionsRegistry as t } from "@umbraco-cms/backoffice/extension-registry";
 const i = [
   {
     type: "workspaceContext",
     alias: "CustomValidator.WorkspaceContext.Validation",
     name: "Validation Workspace Context",
-    api: () => import("./validation-workspace-context-CexQJ1Gg.js").then((a) => a.v),
+    api: () => import("./validation-workspace-context-C5LC-9vh.js"),
     conditions: [
       {
-        alias: t,
+        alias: a,
         match: "Umb.Workspace.Document"
       }
     ]
@@ -17,7 +17,7 @@ const i = [
     type: "workspaceView",
     alias: "CustomValidator.WorkspaceView.Validation",
     name: "Validation Workspace View",
-    element: () => import("./validation-view.element-E9Yq-3SM.js"),
+    element: () => import("./validation-view.element-BP0PsCak.js"),
     weight: 1,
     meta: {
       label: "Validation",
@@ -26,13 +26,13 @@ const i = [
     },
     conditions: [
       {
-        alias: t,
+        alias: a,
         match: "Umb.Workspace.Document"
       }
     ]
   }
 ], s = () => {
-  i.forEach((a) => o.register(a));
+  i.forEach((o) => t.register(o));
 };
 export {
   i as manifests,
