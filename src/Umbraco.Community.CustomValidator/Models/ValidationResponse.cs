@@ -1,5 +1,8 @@
-﻿namespace Umbraco.Community.CustomValidator.Models;
+﻿using System.Diagnostics.CodeAnalysis;
 
+namespace Umbraco.Community.CustomValidator.Models;
+
+[ExcludeFromCodeCoverage]
 public sealed record ValidationResponse
 {
     public required Guid ContentId { get; init; }

@@ -9,10 +9,6 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Validation;
 
-public interface IHomePage : IPublishedContent { }
-public interface IBasePage { }
-public interface IHomePageWithBase : IPublishedContent, IBasePage { }
-
 [TestFixture]
 public class DocumentValidationServiceTests
 {
