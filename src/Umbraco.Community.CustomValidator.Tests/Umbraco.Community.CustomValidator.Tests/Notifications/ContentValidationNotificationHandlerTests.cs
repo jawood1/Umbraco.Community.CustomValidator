@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
+using NUnit.Framework;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.PublishedContent;
@@ -25,10 +27,12 @@ public class ContentValidationNotificationHandlerTests
     private Mock<IUmbracoContextAccessor> _umbracoContextAccessorMock = null!;
     private Mock<IVariationContextAccessor> _variationContextAccessorMock = null!;
     private Mock<ILogger<ContentValidationNotificationHandler>> _loggerMock = null!;
+    private Mock<IOptions<CustomValidatorOptions>> _optionsMock = null!;
     private ContentValidationNotificationHandler _sut = null!;
 
     private ServiceProvider _serviceProvider = null!;
     private IMemoryCache _memoryCache = null!;
+    private CustomValidatorOptions _options = null!;
 
     [SetUp]
     public void Setup()
@@ -41,15 +45,26 @@ public class ContentValidationNotificationHandlerTests
         _serviceProvider = services.BuildServiceProvider();
         _memoryCache = _serviceProvider.GetRequiredService<IMemoryCache>();
 
+        // Default options
+        _options = new CustomValidatorOptions
+        {
+            TreatWarningsAsErrors = false,
+            CacheExpirationMinutes = 30
+        };
+
+        _optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        _optionsMock.Setup(x => x.Value).Returns(_options);
+
         _cacheService = new ValidationCacheService(
             _memoryCache,
+            _optionsMock.Object,
             _serviceProvider.GetRequiredService<ILogger<ValidationCacheService>>());
 
         _validationService = new DocumentValidationService(
             _serviceProvider,
             _serviceProvider.GetRequiredService<ILogger<DocumentValidationService>>());
 
-        // Mock Umbraco dependencies
+        // Mock dependencies
         _umbracoContextAccessorMock = new Mock<IUmbracoContextAccessor>();
         _variationContextAccessorMock = new Mock<IVariationContextAccessor>();
         _loggerMock = new Mock<ILogger<ContentValidationNotificationHandler>>();
@@ -59,6 +74,7 @@ public class ContentValidationNotificationHandlerTests
             _validationService,
             _umbracoContextAccessorMock.Object,
             _variationContextAccessorMock.Object,
+            _optionsMock.Object,
             _loggerMock.Object);
     }
 
@@ -78,7 +94,6 @@ public class ContentValidationNotificationHandlerTests
         var documentId = Guid.NewGuid();
         var entity = CreateMockContent(documentId, "Test Page");
 
-        // Pre-populate cache
         _cacheService.SetCache(documentId, null, CreateValidationResponse(documentId));
 
         var notification = new ContentSavingNotification(entity, new EventMessages());
@@ -86,31 +101,9 @@ public class ContentValidationNotificationHandlerTests
         // Act
         await _sut.HandleAsync(notification, CancellationToken.None);
 
-        // Assert - Cache should be cleared
+        // Assert
         var cached = _cacheService.TryGetCached(documentId, null, out _);
         Assert.That(cached, Is.False);
-    }
-
-    [Test]
-    public async Task HandleAsync_ContentSaving_VariantContent_ClearsOnlySavingCultures()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var entity = CreateMockVariantContent(documentId, "Test Page", "en-US", "da-DK");
-
-        // Pre-populate cache for both cultures
-        _cacheService.SetCache(documentId, "en-US", CreateValidationResponse(documentId));
-        _cacheService.SetCache(documentId, "da-DK", CreateValidationResponse(documentId));
-
-        // Create notification that only saves en-US
-        var notification = new ContentSavingNotification(entity, new EventMessages());
-
-        // Act
-        await _sut.HandleAsync(notification, CancellationToken.None);
-
-        // Assert - Only en-US should be cleared (if IsSavingCulture returns true for en-US)
-        // Note: This test assumes the notification's IsSavingCulture logic
-        // In a real scenario, you'd need to set up the notification properly
     }
 
     [Test]
@@ -154,7 +147,7 @@ public class ContentValidationNotificationHandlerTests
         // Act
         await _sut.HandleAsync(notification, CancellationToken.None);
 
-        // Assert - No error messages means publish will proceed
+        // Assert
         Assert.That(notification.Messages.GetAll(), Is.Empty);
     }
 
@@ -173,6 +166,7 @@ public class ContentValidationNotificationHandlerTests
             validationService,
             _umbracoContextAccessorMock.Object,
             _variationContextAccessorMock.Object,
+            _optionsMock.Object,
             _loggerMock.Object);
 
         SetupUmbracoContext(content);
@@ -182,11 +176,11 @@ public class ContentValidationNotificationHandlerTests
         // Act
         await sut.HandleAsync(notification, CancellationToken.None);
 
-        // Assert - Check error messages were added
+        // Assert
         var errorMessages = notification.Messages.GetAll().ToList();
         Assert.That(errorMessages, Has.Count.GreaterThan(0));
         Assert.That(errorMessages.First().MessageType, Is.EqualTo(EventMessageType.Error));
-        Assert.That(errorMessages.First().Message, Does.Contain("validation error(s) found"));
+        Assert.That(errorMessages.First().Category, Does.Contain("Custom Validation Failed"));
     }
 
     [Test]
@@ -197,7 +191,6 @@ public class ContentValidationNotificationHandlerTests
         var entity = CreateMockContent(documentId, "Test Page");
         var content = CreateMockPublishedContent(documentId);
 
-        // Register validator that returns only warnings
         var validationService = CreateValidationServiceWithWarningValidator();
 
         var sut = new ContentValidationNotificationHandler(
@@ -205,6 +198,7 @@ public class ContentValidationNotificationHandlerTests
             validationService,
             _umbracoContextAccessorMock.Object,
             _variationContextAccessorMock.Object,
+            _optionsMock.Object,
             _loggerMock.Object);
 
         SetupUmbracoContext(content);
@@ -214,10 +208,9 @@ public class ContentValidationNotificationHandlerTests
         // Act
         await sut.HandleAsync(notification, CancellationToken.None);
 
-        // Assert - No error messages (only warnings), so publish proceeds
+        // Assert
         var messages = notification.Messages.GetAll().ToList();
-        Assert.That(messages.All(m => m.MessageType != EventMessageType.Error), Is.True,
-            "Should have no error messages (warnings don't cancel publish)");
+        Assert.That(messages.All(m => m.MessageType != EventMessageType.Error), Is.True);
     }
 
     [Test]
@@ -226,7 +219,7 @@ public class ContentValidationNotificationHandlerTests
         // Arrange
         var documentId = Guid.NewGuid();
         var entity = CreateMockContent(documentId, "Test Page");
-        var content = CreateMockPublishedContent(documentId); // Pass the same GUID
+        var content = CreateMockPublishedContent(documentId);
 
         var validationService = CreateValidationServiceWithWarningValidator();
 
@@ -235,6 +228,7 @@ public class ContentValidationNotificationHandlerTests
             validationService,
             _umbracoContextAccessorMock.Object,
             _variationContextAccessorMock.Object,
+            _optionsMock.Object,
             _loggerMock.Object);
 
         SetupUmbracoContext(content);
@@ -244,7 +238,7 @@ public class ContentValidationNotificationHandlerTests
         // Act
         await sut.HandleAsync(notification, CancellationToken.None);
 
-        // Assert - Check that result was cached with the published content's Key
+        // Assert
         var cached = _cacheService.TryGetCached(documentId, null, out var cachedResponse);
         Assert.That(cached, Is.True);
         Assert.That(cachedResponse!.HasValidator, Is.True);
@@ -252,7 +246,110 @@ public class ContentValidationNotificationHandlerTests
 
     #endregion
 
-    #region ContentPublishingNotification Tests - Exception Handling
+    #region TreatWarningsAsErrors Tests
+
+    [Test]
+    public async Task HandleAsync_ContentPublishing_TreatWarningsAsErrors_True_CancelsPublishOnWarnings()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var entity = CreateMockContent(documentId, "Test Page");
+        var content = CreateMockPublishedContent(documentId);
+
+        // Set option to treat warnings as errors
+        _options.TreatWarningsAsErrors = true;
+
+        var validationService = CreateValidationServiceWithWarningValidator();
+
+        var sut = new ContentValidationNotificationHandler(
+            _cacheService,
+            validationService,
+            _umbracoContextAccessorMock.Object,
+            _variationContextAccessorMock.Object,
+            _optionsMock.Object,
+            _loggerMock.Object);
+
+        SetupUmbracoContext(content);
+
+        var notification = new ContentPublishingNotification(entity, new EventMessages());
+
+        // Act
+        await sut.HandleAsync(notification, CancellationToken.None);
+
+        // Assert - Should cancel because warnings are treated as errors
+        var errorMessages = notification.Messages.GetAll().ToList();
+        Assert.That(errorMessages, Has.Count.EqualTo(1));
+        Assert.That(errorMessages.First().MessageType, Is.EqualTo(EventMessageType.Error));
+    }
+
+    [Test]
+    public async Task HandleAsync_ContentPublishing_TreatWarningsAsErrors_False_AllowsPublishWithWarnings()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var entity = CreateMockContent(documentId, "Test Page");
+        var content = CreateMockPublishedContent(documentId);
+
+        // Ensure option is false (default)
+        _options.TreatWarningsAsErrors = false;
+
+        var validationService = CreateValidationServiceWithWarningValidator();
+
+        var sut = new ContentValidationNotificationHandler(
+            _cacheService,
+            validationService,
+            _umbracoContextAccessorMock.Object,
+            _variationContextAccessorMock.Object,
+            _optionsMock.Object,
+            _loggerMock.Object);
+
+        SetupUmbracoContext(content);
+
+        var notification = new ContentPublishingNotification(entity, new EventMessages());
+
+        // Act
+        await sut.HandleAsync(notification, CancellationToken.None);
+
+        // Assert - Should NOT cancel (warnings don't block when false)
+        var messages = notification.Messages.GetAll().ToList();
+        Assert.That(messages.All(m => m.MessageType != EventMessageType.Error), Is.True);
+    }
+
+    [Test]
+    public async Task HandleAsync_ContentPublishing_TreatWarningsAsErrors_CountsWarningsAsErrors()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var entity = CreateMockContent(documentId, "Test Page");
+        var content = CreateMockPublishedContent(documentId);
+
+        _options.TreatWarningsAsErrors = true;
+
+        var validationService = CreateValidationServiceWithMixedValidator();
+
+        var sut = new ContentValidationNotificationHandler(
+            _cacheService,
+            validationService,
+            _umbracoContextAccessorMock.Object,
+            _variationContextAccessorMock.Object,
+            _optionsMock.Object,
+            _loggerMock.Object);
+
+        SetupUmbracoContext(content);
+
+        var notification = new ContentPublishingNotification(entity, new EventMessages());
+
+        // Act
+        await sut.HandleAsync(notification, CancellationToken.None);
+
+        // Assert - Should cancel with count of errors + warnings
+        var errorMessages = notification.Messages.GetAll().ToList();
+        Assert.That(errorMessages.First().Message, Does.Contain("2 validation error(s) found"));
+    }
+
+    #endregion
+
+    #region Exception Handling Tests
 
     [Test]
     public async Task HandleAsync_ContentPublishing_ExceptionThrown_CancelsPublish()
@@ -268,7 +365,7 @@ public class ContentValidationNotificationHandlerTests
         // Act
         await _sut.HandleAsync(notification, CancellationToken.None);
 
-        // Assert - Check the event messages instead of CancelOperation property
+        // Assert
         var messages = notification.Messages.GetAll().ToList();
         Assert.That(messages, Has.Count.EqualTo(1));
         Assert.That(messages.First().MessageType, Is.EqualTo(EventMessageType.Error));
@@ -313,11 +410,9 @@ public class ContentValidationNotificationHandlerTests
         contentCacheMock.Setup(x => x.GetById(true, It.IsAny<int>())).Returns(content);
         contentCacheMock.Setup(x => x.GetById(It.IsAny<bool>(), It.IsAny<int>())).Returns(content);
 
-        // Setup umbraco context
         umbracoContextMock.Setup(x => x.Content).Returns(contentCacheMock.Object);
 
         var context = umbracoContextMock.Object;
-
         _umbracoContextAccessorMock.Setup(x => x.TryGetUmbracoContext(out context))
             .Returns(true);
     }
@@ -387,6 +482,20 @@ public class ContentValidationNotificationHandlerTests
             sp.GetRequiredService<ILogger<DocumentValidationService>>());
     }
 
+    private DocumentValidationService CreateValidationServiceWithMixedValidator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<MixedValidator>();
+        services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<MixedValidator>());
+
+        var sp = services.BuildServiceProvider();
+
+        return new DocumentValidationService(
+            sp,
+            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+    }
+
     private static ValidationResponse CreateValidationResponse(Guid documentId, params ValidationMessage[] messages)
     {
         return new ValidationResponse
@@ -422,6 +531,20 @@ public class ContentValidationNotificationHandlerTests
         {
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
             {
+                new() { Message = "Validation warning", Severity = ValidationSeverity.Warning }
+            });
+        }
+    }
+
+    private class MixedValidator : IDocumentValidator
+    {
+        public string NameOfType => "IPublishedContent";
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
+            {
+                new() { Message = "Validation error", Severity = ValidationSeverity.Error },
                 new() { Message = "Validation warning", Severity = ValidationSeverity.Warning }
             });
         }

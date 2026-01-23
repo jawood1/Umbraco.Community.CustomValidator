@@ -11,11 +11,14 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Notifications;
 
+using Microsoft.Extensions.Options;
+
 public sealed class ContentValidationNotificationHandler(
     ValidationCacheService cacheService,
     DocumentValidationService validationService,
     IUmbracoContextAccessor umbracoContextAccessor,
     IVariationContextAccessor variationContextAccessor,
+    IOptions<CustomValidatorOptions> options,
     ILogger<ContentValidationNotificationHandler> logger)
     :   INotificationAsyncHandler<ContentSavingNotification>,
         INotificationAsyncHandler<ContentPublishingNotification>
@@ -121,7 +124,7 @@ public sealed class ContentValidationNotificationHandler(
                     Messages = messages
                 });
 
-                errorCount += messages.Count(m => m.Severity == ValidationSeverity.Error);
+                errorCount += CountErrors(messages);
             }
         }
         else
@@ -136,9 +139,17 @@ public sealed class ContentValidationNotificationHandler(
                 Messages = messages
             });
 
-            errorCount += messages.Count(m => m.Severity == ValidationSeverity.Error);
+            errorCount += CountErrors(messages);
         }
 
         return errorCount;
+    }
+
+    private int CountErrors(IEnumerable<ValidationMessage> messages)
+    {
+        return messages.Count(m =>
+            options.Value.TreatWarningsAsErrors
+                ? m.Severity == ValidationSeverity.Error || m.Severity == ValidationSeverity.Warning
+                : m.Severity == ValidationSeverity.Error);
     }
 }

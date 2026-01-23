@@ -17,6 +17,8 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Controllers;
 
+using Microsoft.Extensions.Options;
+
 [TestFixture]
 public class DocumentValidationControllerTests
 {
@@ -47,8 +49,12 @@ public class DocumentValidationControllerTests
             _serviceProvider,
             _serviceProvider.GetRequiredService<ILogger<DocumentValidationService>>());
 
+        var mockOptions = new Mock<IOptions<CustomValidatorOptions>>();
+        mockOptions.Setup(s => s.Value).Returns(new CustomValidatorOptions());
+
         _cacheService = new ValidationCacheService(
             _memoryCache,
+            mockOptions.Object,
             _serviceProvider.GetRequiredService<ILogger<ValidationCacheService>>());
 
         // Mock Umbraco dependencies

@@ -14,6 +14,7 @@ internal sealed class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
+        builder.Services.Configure<CustomValidatorOptions>(builder.Config.GetSection(Constants.OptionsName));
         builder.Services.AddTransient<ValidationCacheService>();
         builder.Services.AddSingleton<DocumentValidationService>();
         builder.AddNotificationAsyncHandler<ContentSavingNotification, ContentValidationNotificationHandler>();

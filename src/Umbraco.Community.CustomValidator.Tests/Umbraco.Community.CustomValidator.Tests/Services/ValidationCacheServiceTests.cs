@@ -4,6 +4,7 @@ using Moq;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Services;
+using Microsoft.Extensions.Options;
 
 namespace Umbraco.Community.CustomValidator.Tests.Services;
 
@@ -17,9 +18,12 @@ public class ValidationCacheServiceTests
     [SetUp]
     public void Setup()
     {
+        var mockOptions = new Mock<IOptions<CustomValidatorOptions>>();
+        mockOptions.Setup(s => s.Value).Returns(new CustomValidatorOptions());
+
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
         _loggerMock = new Mock<ILogger<ValidationCacheService>>();
-        _sut = new ValidationCacheService(_memoryCache, _loggerMock.Object);
+        _sut = new ValidationCacheService(_memoryCache, mockOptions.Object, _loggerMock.Object);
     }
 
     [TearDown]
@@ -412,6 +416,49 @@ public class ValidationCacheServiceTests
 
         // Cleanup
         testCache.Dispose();
+    }
+
+    #endregion
+
+    #region Cache Disabled Tests
+
+    [Test]
+    public void TryGetCached_WhenCachingDisabled_ReturnsFalse()
+    {
+        // Arrange
+        var options = new CustomValidatorOptions { CacheExpirationMinutes = 0 };
+        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(options);
+
+        var sut = new ValidationCacheService(_memoryCache, optionsMock.Object, _loggerMock.Object);
+        var documentId = Guid.NewGuid();
+
+        // Act
+        var result = sut.TryGetCached(documentId, null, out var cachedResponse);
+
+        // Assert
+        Assert.That(result, Is.False);
+        Assert.That(cachedResponse, Is.Null);
+    }
+
+    [Test]
+    public void SetCache_WhenCachingDisabled_DoesNotCache()
+    {
+        // Arrange
+        var options = new CustomValidatorOptions { CacheExpirationMinutes = 0 };
+        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(options);
+
+        var sut = new ValidationCacheService(_memoryCache, optionsMock.Object, _loggerMock.Object);
+        var documentId = Guid.NewGuid();
+        var response = CreateValidationResponse(documentId);
+
+        // Act
+        sut.SetCache(documentId, null, response);
+
+        // Assert - Should not be cached
+        var cached = sut.TryGetCached(documentId, null, out _);
+        Assert.That(cached, Is.False);
     }
 
     #endregion

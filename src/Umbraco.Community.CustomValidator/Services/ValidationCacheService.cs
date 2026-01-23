@@ -5,13 +5,16 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Services;
 
+using Microsoft.Extensions.Options;
+
 public sealed class ValidationCacheService(
     IMemoryCache cache, 
+    IOptions<CustomValidatorOptions> options,
     ILogger<ValidationCacheService> logger)
 {
     private readonly ConcurrentDictionary<Guid, ConcurrentBag<string>> _documentCacheKeys = new();
 
-    private const int CacheExpirationMinutes = 30;
+    private int CacheExpirationMinutes => options.Value.CacheExpirationMinutes;
     private const string CacheKeyPrefix = "customValidation";
 
     /// <summary>
@@ -23,6 +26,12 @@ public sealed class ValidationCacheService(
     /// <returns>True if a cached result was found, false otherwise.</returns>
     public bool TryGetCached(Guid documentId, string? culture, out ValidationResponse? result)
     {
+        if (CacheExpirationMinutes <= 0)
+        {
+            result = null;
+            return false;
+        }
+
         var cacheKey = GetCacheKey(documentId, culture);
 
         if (cache.TryGetValue(cacheKey, out ValidationResponse? cachedResult))
@@ -51,11 +60,18 @@ public sealed class ValidationCacheService(
     {
         if (response == null) throw new ArgumentNullException(nameof(response));
 
+        if (CacheExpirationMinutes <= 0)
+        {
+            logger.LogDebug("Caching disabled (CacheExpirationMinutes: {Minutes}), skipping cache for document {DocumentId}",
+                CacheExpirationMinutes, documentId);
+            return;
+        }
+
         var cacheKey = GetCacheKey(documentId, culture);
 
         var cacheOptions = new MemoryCacheEntryOptions()
             .SetAbsoluteExpiration(TimeSpan.FromMinutes(CacheExpirationMinutes))
-            .SetPriority(CacheItemPriority.Normal)
+            .SetPriority(CacheItemPriority.Low)
             .RegisterPostEvictionCallback(OnCacheEntryEvicted);
 
         cache.Set(cacheKey, response, cacheOptions);

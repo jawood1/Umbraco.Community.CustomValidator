@@ -170,6 +170,69 @@ The package supports three severity levels:
 
 ## Advanced Usage
 
+### Configuration
+
+Customize the validation behavior by adding settings to your `appsettings.json`:
+```json
+{
+  "CustomValidator": {
+    "TreatWarningsAsErrors": false,
+    "CacheExpirationMinutes": 30
+  }
+}
+```
+
+#### Configuration Options
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `TreatWarningsAsErrors` | `bool` | `false` | When `true`, treats all validation warnings as errors, blocking publish operations when warnings are present |
+| `CacheExpirationMinutes` | `int` | `30` | Duration in minutes that validation results are cached. Set to `0` to disable caching |
+
+### Examples
+
+#### Strict Validation Mode
+Treat all warnings as errors to enforce stricter content quality:
+```json
+{
+  "Umbraco": {
+    "CMS": {
+      "CustomValidator": {
+        "TreatWarningsAsErrors": true
+      }
+    }
+  }
+}
+```
+
+#### Adjust Cache Duration
+Increase cache duration for better performance or decrease for more frequent validation:
+```json
+{
+  "Umbraco": {
+    "CMS": {
+      "CustomValidator": {
+        "CacheExpirationMinutes": 60
+      }
+    }
+  }
+}
+```
+
+#### Disable Caching
+Disable result caching for development or debugging:
+```json
+{
+  "Umbraco": {
+    "CMS": {
+      "CustomValidator": {
+        "CacheExpirationMinutes": 0
+      }
+    }
+  }
+}
+```
+
 ### Accessing Custom Services
 
 Inject services into your validator constructor:
