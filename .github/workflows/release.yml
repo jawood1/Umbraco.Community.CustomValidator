@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       LogFileName: "test-results.trx"
-      ClientPROJECT: "./src/Umbraco.Community.CSPManager/Client"
-      PROJECT: "./src/Umbraco.Community.CSPManager/Umbraco.Community.CSPManager.csproj"
-      TESTPROJECT: "./src/Umbraco.Community.CSPManager.Tests/Umbraco.Community.CSPManager.Tests.csproj"
-      TESTLOGPATH: "./src/Umbraco.Community.CSPManager.Tests/TestResults/"
+      ClientPROJECT: "./src/Umbraco.Community.CustomValidator/Client"
+      PROJECT: "./src/Umbraco.Community.CustomValidator/Umbraco.Community.CustomValidator.csproj"
+      TESTPROJECT: "./src/Umbraco.Community.CustomValidator.Tests/Umbraco.Community.CustomValidator.Tests.csproj"
+      TESTLOGPATH: "./src/Umbraco.Community.CustomValidator.Tests/TestResults/"
       OUT_FOLDER: ./build-out/
       
     steps:
