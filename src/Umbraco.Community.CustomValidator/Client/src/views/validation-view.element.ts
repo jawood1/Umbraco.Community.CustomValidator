@@ -2,6 +2,8 @@ import { customElement, state, html, nothing, repeat, LitElement, type PropertyV
 import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
+import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
+import { UmbEntityUpdatedEvent } from '@umbraco-cms/backoffice/entity-action';
 import { VALIDATION_WORKSPACE_CONTEXT } from '../contexts/validation-workspace-context.js';
 import type { ValidationResult, NotificationColor, ValidationMessage } from '../validation/types.js';
 import { ValidationSeverity } from '../validation/types.js';
@@ -25,6 +27,7 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
 export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     #countContext?: typeof VALIDATION_WORKSPACE_CONTEXT.TYPE;
     #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
+    #actionEventContext?: typeof UMB_ACTION_EVENT_CONTEXT.TYPE;
     #currentDocumentId?: string;
     #variantObserverSetup = false;
     #instanceIndexAssigned = false;
@@ -55,26 +58,47 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
             
             this.#countContext = instance;
             
-            // Observe the counter
             this.observe(instance.instanceCounter, (count) => {
-                // Only assign our index once, using the FIRST value we see
                 if (!this.#instanceIndexAssigned) {
                     this.#instanceIndexAssigned = true;
                     this.instanceCount = count;
                     
-                    // Increment for the next instance
                     instance.incrementInstance();
-                    
-                    // Try to set up variant observer now that we have our index
                     this.#trySetupVariantObserver();
                 }
             });
+        });
+        
+        // Listen for save/publish events
+        this.consumeContext(UMB_ACTION_EVENT_CONTEXT, (context) => {
+            if (!context) return;
+            
+            this.#actionEventContext = context;
+            this.#actionEventContext.addEventListener(
+                UmbEntityUpdatedEvent.TYPE,
+                this.#onEntityUpdated
+            );
         });
         
         this.#setupWorkspaceObservers();
         this.#setupValidationObservers();
         window.addEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
     }
+
+    #onEntityUpdated = async (event: Event) => {
+        if (!(event instanceof UmbEntityUpdatedEvent)) return;
+        
+        const eventUnique = event.getUnique();
+        const documentUnique = this.#contentWorkspace?.getUnique();
+        
+        // Check if this event is for our current document
+        if (eventUnique === documentUnique && this._documentId) {
+
+            // Brief delay to ensure backend cache is cleared
+            await this.#delay(300);
+            await this.#validateAndUpdateResult({ skipSave: true });
+        }
+    };
     
     #setupWorkspaceObservers() {
         this.consumeContext(UMB_CONTENT_WORKSPACE_CONTEXT, (workspace) => {
@@ -170,7 +194,14 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
         super.disconnectedCallback();
         window.removeEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
         
-        // Type-safe reset
+        // Clean up action event listener
+        if (this.#actionEventContext) {
+            this.#actionEventContext.removeEventListener(
+                UmbEntityUpdatedEvent.TYPE,
+                this.#onEntityUpdated // Remove the "as EventListener"
+            );
+        }
+        
         if (this.#countContext) {
             this.#countContext.resetInstanceCounter();
         }
