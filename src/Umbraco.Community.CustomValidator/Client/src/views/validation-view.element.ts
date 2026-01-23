@@ -178,18 +178,6 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
         });
     }
 
-    override willUpdate(changedProperties: PropertyValues) {
-        super.willUpdate(changedProperties);
-        
-        // Recalculate cached computed properties when validation result changes
-        if (changedProperties.has('_validationResult')) {
-        }
-    }
-
-    override connectedCallback() {
-        super.connectedCallback();
-    }
-
     override disconnectedCallback() {
         super.disconnectedCallback();
         window.removeEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
