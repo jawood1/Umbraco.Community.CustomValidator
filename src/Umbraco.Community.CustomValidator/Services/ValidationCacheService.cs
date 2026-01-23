@@ -1,11 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Services;
-
-using Microsoft.Extensions.Options;
 
 public sealed class ValidationCacheService(
     IMemoryCache cache, 
