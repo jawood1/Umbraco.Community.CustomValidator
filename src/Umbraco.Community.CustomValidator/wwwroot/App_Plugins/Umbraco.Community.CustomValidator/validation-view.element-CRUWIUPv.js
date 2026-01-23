@@ -1,38 +1,38 @@
-import { LitElement as H, nothing as m, html as r, repeat as K, state as _, customElement as X } from "@umbraco-cms/backoffice/external/lit";
-import { UmbElementMixin as q } from "@umbraco-cms/backoffice/element-api";
-import { UmbTextStyles as F } from "@umbraco-cms/backoffice/style";
-import { UMB_CONTENT_WORKSPACE_CONTEXT as J } from "@umbraco-cms/backoffice/content";
-import { VALIDATION_WORKSPACE_CONTEXT as k } from "./validation-workspace-context-C5LC-9vh.js";
-var l = /* @__PURE__ */ ((t) => (t.Error = "Error", t.Warning = "Warning", t.Info = "Info", t))(l || {}), Q = Object.defineProperty, Z = Object.getOwnPropertyDescriptor, M = (t) => {
+import { LitElement as K, nothing as _, html as n, repeat as X, state as f, customElement as q } from "@umbraco-cms/backoffice/external/lit";
+import { UmbElementMixin as F } from "@umbraco-cms/backoffice/element-api";
+import { UmbTextStyles as J } from "@umbraco-cms/backoffice/style";
+import { UMB_CONTENT_WORKSPACE_CONTEXT as Q } from "@umbraco-cms/backoffice/content";
+import { VALIDATION_WORKSPACE_CONTEXT as R } from "./validation-workspace-context-C5LC-9vh.js";
+var o = /* @__PURE__ */ ((t) => (t.Error = "Error", t.Warning = "Warning", t.Info = "Info", t))(o || {}), Z = Object.defineProperty, j = Object.getOwnPropertyDescriptor, M = (t) => {
   throw TypeError(t);
-}, v = (t, e, i, o) => {
-  for (var d = o > 1 ? void 0 : o ? Z(e, i) : e, S = t.length - 1, V; S >= 0; S--)
-    (V = t[S]) && (d = (o ? V(e, i, d) : V(d)) || d);
-  return o && d && Q(e, i, d), d;
-}, R = (t, e, i) => e.has(t) || M("Cannot " + i), n = (t, e, i) => (R(t, e, "read from private field"), e.get(t)), c = (t, e, i) => e.has(t) ? M("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), g = (t, e, i, o) => (R(t, e, "write to private field"), e.set(t, i), i), s = (t, e, i) => (R(t, e, "access private method"), i), f, h, y, w, p, a, O, I, $, A, D, T, C, x, b, L, E, N, P, U, Y, z, B, G;
-const j = 500, tt = 1e3, W = {
-  [l.Error]: 0,
-  [l.Warning]: 1,
-  [l.Info]: 2
-}, et = {
-  [l.Error]: "danger",
-  [l.Warning]: "warning",
-  [l.Info]: "default"
+}, v = (t, e, i, l) => {
+  for (var d = l > 1 ? void 0 : l ? j(e, i) : e, S = t.length - 1, V; S >= 0; S--)
+    (V = t[S]) && (d = (l ? V(e, i, d) : V(d)) || d);
+  return l && d && Z(e, i, d), d;
+}, k = (t, e, i) => e.has(t) || M("Cannot " + i), r = (t, e, i) => (k(t, e, "read from private field"), e.get(t)), c = (t, e, i) => e.has(t) ? M("Cannot add the same private member more than once") : e instanceof WeakSet ? e.add(t) : e.set(t, i), g = (t, e, i, l) => (k(t, e, "write to private field"), e.set(t, i), i), s = (t, e, i) => (k(t, e, "access private method"), i), p, h, y, w, m, a, O, I, $, A, D, T, C, x, b, L, E, N, P, U, Y, z, B, G, H;
+const tt = 500, et = 1e3, W = {
+  [o.Error]: 0,
+  [o.Warning]: 1,
+  [o.Info]: 2
+}, it = {
+  [o.Error]: "danger",
+  [o.Warning]: "warning",
+  [o.Info]: "default"
 };
-let u = class extends q(H) {
+let u = class extends F(K) {
   constructor() {
-    super(), c(this, a), c(this, f), c(this, h), c(this, y), c(this, w, !1), c(this, p, !1), this.instanceCount = 0, this._isValidating = !1, this._cultureReady = !1, c(this, x, async () => {
+    super(), c(this, a), c(this, p), c(this, h), c(this, y), c(this, w, !1), c(this, m, !1), this.instanceCount = 0, this._isValidating = !1, this._cultureReady = !1, c(this, x, async () => {
       await s(this, a, C).call(this, { skipSave: !1 }), window.dispatchEvent(new CustomEvent("custom-validator:validate-all", { detail: { skipSave: !0 } }));
     }), c(this, b, async (t) => {
       if (this.isConnected && this._documentId) {
         let e = !0;
         t instanceof CustomEvent && typeof t.detail?.skipSave == "boolean" && (e = t.detail.skipSave), await s(this, a, C).call(this, { skipSave: e });
       }
-    }), this.consumeContext(k, (t) => {
-      t && (g(this, f, t), this.observe(t.instanceCounter, (e) => {
-        n(this, p) || (g(this, p, !0), this.instanceCount = e, t.incrementInstance(), s(this, a, I).call(this));
+    }), this.consumeContext(R, (t) => {
+      t && (g(this, p, t), this.observe(t.instanceCounter, (e) => {
+        r(this, m) || (g(this, m, !0), this.instanceCount = e, t.incrementInstance(), s(this, a, I).call(this));
       }));
-    }), s(this, a, O).call(this), s(this, a, T).call(this), window.addEventListener("custom-validator:validate-all", n(this, b));
+    }), s(this, a, O).call(this), s(this, a, T).call(this), window.addEventListener("custom-validator:validate-all", r(this, b));
   }
   willUpdate(t) {
     super.willUpdate(t), t.has("_validationResult");
@@ -41,19 +41,19 @@ let u = class extends q(H) {
     super.connectedCallback();
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), window.removeEventListener("custom-validator:validate-all", n(this, b)), n(this, f) && n(this, f).resetInstanceCounter();
+    super.disconnectedCallback(), window.removeEventListener("custom-validator:validate-all", r(this, b)), r(this, p) && r(this, p).resetInstanceCounter();
   }
   render() {
     const t = this._validationResult?.hasValidator !== !1 && this._validationResult !== void 0;
-    return r`
+    return n`
             <umb-body-layout header-transparent header-fit-height>
                 <div style="display: flex; flex-direction: column; gap: var(--uui-size-layout-1);">
-                    ${t ? r`
+                    ${t ? n`
                         <uui-box headline-variant="h4">
-                            ${s(this, a, z).call(this)}
-                            ${s(this, a, G).call(this)}
+                            ${s(this, a, B).call(this)}
+                            ${s(this, a, H).call(this)}
                         </uui-box>
-                    ` : m}
+                    ` : _}
 
                     ${s(this, a, P).call(this)}
                 </div>
@@ -61,26 +61,26 @@ let u = class extends q(H) {
         `;
   }
 };
-f = /* @__PURE__ */ new WeakMap();
+p = /* @__PURE__ */ new WeakMap();
 h = /* @__PURE__ */ new WeakMap();
 y = /* @__PURE__ */ new WeakMap();
 w = /* @__PURE__ */ new WeakMap();
-p = /* @__PURE__ */ new WeakMap();
+m = /* @__PURE__ */ new WeakMap();
 a = /* @__PURE__ */ new WeakSet();
 O = function() {
-  this.consumeContext(J, (t) => {
+  this.consumeContext(Q, (t) => {
     t && (g(this, h, t), s(this, a, A).call(this, t), s(this, a, I).call(this));
   });
 };
 I = function() {
-  n(this, w) || !n(this, h) || !n(this, p) || (g(this, w, !0), s(this, a, $).call(this, n(this, h)));
+  r(this, w) || !r(this, h) || !r(this, m) || (g(this, w, !0), s(this, a, $).call(this, r(this, h)));
 };
 $ = function(t) {
   this.observe(
     t.splitView.activeVariantByIndex(this.instanceCount),
     async (e) => {
-      const i = e?.culture ?? void 0, o = this._currentCulture !== i;
-      this._currentCulture = i, this._cultureReady || (this._cultureReady = !0), this._documentId && (o || !this._validationResult) && await s(this, a, C).call(this, { useDelay: !0, skipSave: !0 });
+      const i = e?.culture ?? void 0, l = this._currentCulture !== i;
+      this._currentCulture = i, this._cultureReady || (this._cultureReady = !0), this._documentId && (l || !this._validationResult) && await s(this, a, C).call(this, { useDelay: !0, skipSave: !0 });
     }
   );
 };
@@ -93,10 +93,10 @@ A = function(t) {
   );
 };
 D = function(t) {
-  return n(this, y) !== void 0 && n(this, y) !== t;
+  return r(this, y) !== void 0 && r(this, y) !== t;
 };
 T = function() {
-  this.consumeContext(k, (t) => {
+  this.consumeContext(R, (t) => {
     t && this.observe(
       t.isValidating,
       (e) => {
@@ -108,18 +108,18 @@ T = function() {
 C = async function(t = {}) {
   if (this._documentId)
     try {
-      const e = await this.getContext(k);
+      const e = await this.getContext(R);
       if (!e) return;
       const i = async () => {
         try {
-          !t.skipSave && n(this, h)?.requestSubmit && (await n(this, h).requestSubmit(), await s(this, a, E).call(this, j));
-          const o = await e.validateManually(this._documentId, this._currentCulture);
-          this._validationResult = o;
-        } catch (o) {
-          console.debug("Validation skipped:", o);
+          !t.skipSave && r(this, h)?.requestSubmit && (await r(this, h).requestSubmit(), await s(this, a, E).call(this, tt));
+          const l = await e.validateManually(this._documentId, this._currentCulture);
+          this._validationResult = l;
+        } catch (l) {
+          console.debug("Validation skipped:", l);
         }
       };
-      t.useDelay && await s(this, a, E).call(this, tt), await i();
+      t.useDelay && await s(this, a, E).call(this, et), await i();
     } catch (e) {
       console.error("Failed to validate and update result:", e);
     }
@@ -128,39 +128,46 @@ x = /* @__PURE__ */ new WeakMap();
 b = /* @__PURE__ */ new WeakMap();
 L = function() {
   return this._validationResult ? {
-    errors: this._validationResult.messages.filter((t) => t.severity === l.Error).length,
-    warnings: this._validationResult.messages.filter((t) => t.severity === l.Warning).length
+    errors: this._validationResult.messages.filter((t) => t.severity === o.Error).length,
+    warnings: this._validationResult.messages.filter((t) => t.severity === o.Warning).length
   } : { errors: 0, warnings: 0 };
 };
 E = function(t) {
   return new Promise((e) => setTimeout(e, t));
 };
 N = function(t) {
-  return et[t];
+  return it[t];
 };
 P = function() {
   if (this._isValidating || !this._validationResult)
-    return s(this, a, U).call(this);
+    return s(this, a, Y).call(this);
   if (!this._validationResult.hasValidator)
-    return r`
+    return n`
                 <uui-box headline="Status" headline-variant="h5">
                     <p>No custom validation configured for this document.</p>
                 </uui-box>`;
   const t = this._validationResult.messages.some(
-    (i) => i.severity === l.Error || i.severity === l.Warning
-  ), e = [...this._validationResult.messages].sort((i, o) => W[i.severity] - W[o.severity]);
-  return r`
+    (e) => e.severity === o.Error || e.severity === o.Warning
+  );
+  return n`
             <uui-box headline="Validation Results" headline-variant="h5">
-                ${t ? m : s(this, a, Y).call(this)}
-                <uui-table aria-label="Validation Messages">
+                ${t ? _ : s(this, a, z).call(this)}
+                ${this._validationResult.messages.length > 0 ? s(this, a, U).call(this, this._validationResult.messages) : _}
+            </uui-box>
+        `;
+};
+U = function(t) {
+  const e = [...t].sort((i, l) => W[i.severity] - W[l.severity]);
+  return n`
+        <uui-table aria-label="Validation Messages">
                     <uui-table-head>
                         <uui-table-head-cell style="width: 120px;">Severity</uui-table-head-cell>
                         <uui-table-head-cell>Message</uui-table-head-cell>
                     </uui-table-head>
-                    ${K(
+                    ${X(
     e ?? [],
     (i) => i.message,
-    (i) => r`
+    (i) => n`
                             <uui-table-row>
                                 <uui-table-cell>
                                     <uui-tag color=${s(this, a, N).call(this, i.severity)} look="primary">
@@ -171,12 +178,10 @@ P = function() {
                             </uui-table-row>
                         `
   )}
-                </uui-table>
-            </uui-box>
-        `;
+        </uui-table>`;
 };
-U = function() {
-  return r`
+Y = function() {
+  return n`
             <uui-box headline="Status" headline-variant="h5">
                 <div style="display: flex; align-items: center; gap: var(--uui-size-space-3);">
                     <uui-loader></uui-loader>
@@ -185,73 +190,73 @@ U = function() {
             </uui-box>
         `;
 };
-Y = function() {
-  return r`
+z = function() {
+  return n`
             <p style="color: var(--uui-color-positive);">
                 <uui-icon name="icon-check"></uui-icon>
                 All validations passed successfully.
             </p>
         `;
 };
-z = function() {
+B = function() {
   const { errors: t, warnings: e } = s(this, a, L).call(this);
-  return r`
+  return n`
             <div slot="headline">
-                ${s(this, a, B).call(this, t)}
+                ${s(this, a, G).call(this, t)}
                 Document Validation
             </div>
             <div slot="header-actions">
-                ${t > 0 ? r`
+                ${t > 0 ? n`
                     <uui-tag color="danger" look="primary">${t}</uui-tag>
-                ` : m}
-                ${e > 0 ? r`
+                ` : _}
+                ${e > 0 ? n`
                     <uui-tag color="warning" look="primary">${e}</uui-tag>
-                ` : m}
+                ` : _}
             </div>
         `;
 };
-B = function(t) {
-  return t > 0 ? r`<uui-icon name="icon-delete" style="color: var(--uui-color-danger);"></uui-icon>` : r`<uui-icon name="icon-check" style="color: var(--uui-color-positive);"></uui-icon>`;
+G = function(t) {
+  return t > 0 ? n`<uui-icon name="icon-delete" style="color: var(--uui-color-danger);"></uui-icon>` : n`<uui-icon name="icon-check" style="color: var(--uui-color-positive);"></uui-icon>`;
 };
-G = function() {
-  return r`
+H = function() {
+  return n`
             <uui-button-group>
                 <uui-button
                     look="primary"
                     color="default"
                     label="Save & Validate"
-                    @click=${n(this, x)}
+                    @click=${r(this, x)}
                     ?disabled=${!this._documentId || this._isValidating}>
                     Save & Validate
                 </uui-button>
-                ${this._isValidating ? r`<uui-loader></uui-loader>` : m}
+                ${this._isValidating ? n`<uui-loader></uui-loader>` : _}
             </uui-button-group>
         `;
 };
-u.styles = [F];
+u.styles = [J];
 v([
-  _()
+  f()
 ], u.prototype, "instanceCount", 2);
 v([
-  _()
+  f()
 ], u.prototype, "_documentId", 2);
 v([
-  _()
+  f()
 ], u.prototype, "_validationResult", 2);
 v([
-  _()
+  f()
 ], u.prototype, "_isValidating", 2);
 v([
-  _()
+  f()
 ], u.prototype, "_currentCulture", 2);
 v([
-  _()
+  f()
 ], u.prototype, "_cultureReady", 2);
 u = v([
-  X("custom-validator-workspace-view")
+  q("custom-validator-workspace-view")
 ], u);
 export {
   u as CustomValidatorWorkspaceView,
   u as element
 };
-//# sourceMappingURL=validation-view.element-E52UzQtV.js.map
+//# sourceMappingURL=validation-view.element-CRUWIUPv.js.map

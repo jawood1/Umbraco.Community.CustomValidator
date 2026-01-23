@@ -3,7 +3,7 @@ import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
 import { VALIDATION_WORKSPACE_CONTEXT } from '../contexts/validation-workspace-context.js';
-import type { ValidationResult, NotificationColor } from '../validation/types.js';
+import type { ValidationResult, NotificationColor, ValidationMessage } from '../validation/types.js';
 import { ValidationSeverity } from '../validation/types.js';
 
 const SAVE_DELAY_MS = 500;
@@ -264,12 +264,20 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
         const hasErrorsOrWarnings = this._validationResult.messages.some(
             m => m.severity === ValidationSeverity.Error || m.severity === ValidationSeverity.Warning);
 
-        const sortedMessages = [...this._validationResult.messages].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
-
         return html`
             <uui-box headline="Validation Results" headline-variant="h5">
                 ${!hasErrorsOrWarnings ? this.#renderSuccessMessage() : nothing}
-                <uui-table aria-label="Validation Messages">
+                ${this._validationResult.messages.length > 0 ? this.#renderMessagesTable(this._validationResult.messages) : nothing}
+            </uui-box>
+        `;
+    }
+
+    #renderMessagesTable(messages: ValidationMessage[]): unknown {
+
+        const sortedMessages = [...messages].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+
+        return html`
+        <uui-table aria-label="Validation Messages">
                     <uui-table-head>
                         <uui-table-head-cell style="width: 120px;">Severity</uui-table-head-cell>
                         <uui-table-head-cell>Message</uui-table-head-cell>
@@ -288,9 +296,7 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
                             </uui-table-row>
                         `
                     )}
-                </uui-table>
-            </uui-box>
-        `;
+        </uui-table>`;
     }
 
     #renderLoadingState() {
