@@ -354,3 +354,6 @@ MigrationBackup/
 
 # Rider
 src/.idea
+ 
+# Ignore Umbraco App_Plugins in wwwroot
+src/Umbraco.Community.CustomValidator/wwwroot/App_Plugins/

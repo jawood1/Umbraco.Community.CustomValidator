@@ -1,29 +1,83 @@
-name: Release Package
-
-# This action will start when a correctly formatted tag is pushed (e.g. 0.1.0)
+name: Build
+permissions:
+  contents: read
+  pull-requests: write
 
 on:
+  release:
+    types: [published]
   push:
-    tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
-
-    runs-on: windows-latest
-
+    runs-on: ubuntu-latest
+    env:
+      LogFileName: "test-results.trx"
+      ClientPROJECT: "./src/Umbraco.Community.CSPManager/Client"
+      PROJECT: "./src/Umbraco.Community.CSPManager/Umbraco.Community.CSPManager.csproj"
+      TESTPROJECT: "./src/Umbraco.Community.CSPManager.Tests/Umbraco.Community.CSPManager.Tests.csproj"
+      TESTLOGPATH: "./src/Umbraco.Community.CSPManager.Tests/TestResults/"
+      OUT_FOLDER: ./build-out/
+      
     steps:
-
-    - name: Checkout repository
-      uses: actions/checkout@v3
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v2
-      with:
-        dotnet-version: 10.0.x
-
-    - name: Build & Pack
-      run: dotnet pack src\Umbraco.Community.CustomValidator\Umbraco.Community.CustomValidator.csproj -c Release /p:Version=${{github.ref_name}}
-
-    - name: Push to NuGet
-      run: dotnet nuget push **\*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+          
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '${{ env.ClientPROJECT }}/package.json'
+          cache: 'npm'
+          cache-dependency-path: '${{ env.ClientPROJECT }}/package-lock.json'
+          
+      - name: Install Node dependencies
+        working-directory: ${{ env.ClientPROJECT }}
+        run: npm ci
+        
+      - name: Build Client
+        working-directory: ${{ env.ClientPROJECT }}
+        run: npm run build
+        
+      - name: Set build version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="0.0.0-ci.${{ github.run_number }}"
+          fi
+          echo "BUILD_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Build & Pack
+        run: dotnet pack ${{ env.PROJECT }} -c Release -p:Version=${{ env.BUILD_VERSION }} --output ${{ env.OUT_FOLDER }}
+        
+      - name: Run backend tests
+        run: dotnet test ${{ env.TESTPROJECT }} -c Release --verbosity normal --filter "Category!=LongRunning" --logger "trx;LogFileName=${{ env.LogFileName }}"
+        
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: test-results
+          path: "${{ env.TESTLOGPATH }}${{ env.LogFileName }}"
+          
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package-${{ steps.version.outputs.version }}
+          path: ${{ env.OUT_FOLDER }}*.nupkg
+          
+      - name: Publish to NuGet
+        if: github.event_name == 'release'
+        run: dotnet nuget push ${{ env.OUT_FOLDER }}*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
