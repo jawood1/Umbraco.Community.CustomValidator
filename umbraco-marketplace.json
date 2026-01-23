@@ -22,5 +22,15 @@
       "content-quality"
     ],
     "Title": "Umbraco Community Custom Validator",
-    "VersionDependencyMode": "Default"
+    "VersionDependencyMode": "Default",
+    "Screenshots": [
+      {
+        "ImageUrl": "https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/single-lang-view.jpg",
+        "Caption": "Validation tab single workspace view."
+      },
+      {
+        "ImageUrl": "https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/split-lang-view.jpg",
+        "Caption": "Validation tab split workspace view."
+      }
+    ]
   }
