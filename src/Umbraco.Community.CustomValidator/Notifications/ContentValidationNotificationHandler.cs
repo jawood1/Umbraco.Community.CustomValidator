@@ -11,7 +11,7 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Notifications;
 
-internal sealed class ContentValidationNotificationHandler(
+public sealed class ContentValidationNotificationHandler(
     ValidationCacheService cacheService,
     DocumentValidationService validationService,
     IUmbracoContextAccessor umbracoContextAccessor,
