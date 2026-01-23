@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Umbraco.Community.CustomVal
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Umbraco.Community.CustomValidator", "Umbraco.Community.CustomValidator\Umbraco.Community.CustomValidator.csproj", "{BE508C15-7CDC-4F8A-9654-ACCECC57F366}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Umbraco.Community.CustomValidator.Tests", "Umbraco.Community.CustomValidator.Tests\Umbraco.Community.CustomValidator.Tests\Umbraco.Community.CustomValidator.Tests.csproj", "{123C6D2D-3717-4BE7-9938-4C679216C6D0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Umbraco.Community.CustomValidator.Tests", "Umbraco.Community.CustomValidator.Tests\Umbraco.Community.CustomValidator.Tests.csproj", "{123C6D2D-3717-4BE7-9938-4C679216C6D0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

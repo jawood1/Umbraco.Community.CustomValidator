@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Umbraco.Community.CustomValidator\Umbraco.Community.CustomValidator.csproj" />
+    <ProjectReference Include="..\Umbraco.Community.CustomValidator\Umbraco.Community.CustomValidator.csproj" />
   </ItemGroup>
 
   <ItemGroup>
