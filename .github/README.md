@@ -277,6 +277,38 @@ public class ArticleValidator : BaseDocumentValidator<IHeaderControls>
 
 When validation errors (`ValidationSeverity.Error`) are present, a notification handler automatically blocks the content from being published, ensuring data quality and consistency.
 
+### Caching
+
+Custom Validator uses **HybridCache** for efficient validation result caching with tag-based invalidation.
+
+#### Cache Keys
+
+Validation results are cached using the following key format:
+```
+customValidation_{documentId}_{culture}
+```
+
+Examples:
+- Invariant content: `customValidation_abc123_invariant`
+- Variant content: `customValidation_abc123_en-US`
+
+#### Cache Tags
+
+Tags enable efficient bulk invalidation:
+- `customValidation` - Global tag for all validation cache entries
+- `customValidation:doc:{documentId}` - All cultures for a specific document
+- `customValidation:doc:{documentId}:culture:{culture}` - Specific document and culture
+
+#### Cache Invalidation
+
+- Cache automatically clears when content is saved or published
+- Default expiration: 30 minutes
+- Configure via `CacheExpirationMinutes` in appsettings.json
+
+#### Requirements
+
+HybridCache is included with Umbraco 17+ and registered automatically.
+
 ## API
 
 ### BaseDocumentValidator<T>
