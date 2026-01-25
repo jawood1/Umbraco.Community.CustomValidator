@@ -1,201 +1,111 @@
-﻿using System.Collections.Concurrent;
-using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Services;
 
+/// <summary>
+/// Handles caching of document validation results using HybridCache with tag-based invalidation.
+/// </summary>
 public sealed class ValidationCacheService(
-    IMemoryCache cache, 
+    HybridCache cache,
     IOptions<CustomValidatorOptions> options,
     ILogger<ValidationCacheService> logger)
 {
-    private readonly ConcurrentDictionary<Guid, ConcurrentBag<string>> _documentCacheKeys = new();
-
-    private int CacheExpirationMinutes => options.Value.CacheExpirationMinutes;
     private const string CacheKeyPrefix = "customValidation";
 
     /// <summary>
-    /// Attempts to retrieve a cached validation result.
+    /// Gets or sets a cached validation result.
     /// </summary>
-    /// <param name="documentId">The document identifier.</param>
-    /// <param name="culture">The culture code. Null for invariant content.</param>
-    /// <param name="result">The cached validation result if found.</param>
-    /// <returns>True if a cached result was found, false otherwise.</returns>
-    public bool TryGetCached(Guid documentId, string? culture, out ValidationResponse? result)
+    public async Task<ValidationResponse> GetOrSetAsync(
+        Guid documentId, 
+        string? culture, 
+        Func<CancellationToken, ValueTask<ValidationResponse>> factory,
+        CancellationToken cancellationToken = default)
     {
-        if (CacheExpirationMinutes <= 0)
+        // Skip caching if disabled
+        if (options.Value.CacheExpirationMinutes <= 0)
         {
-            result = null;
-            return false;
+            logger.LogDebug("Caching disabled, executing validation directly for document {DocumentId}", documentId);
+            return await factory(cancellationToken);
         }
 
         var cacheKey = GetCacheKey(documentId, culture);
+        var tags = GetCacheTags(documentId, culture);
 
-        if (cache.TryGetValue(cacheKey, out ValidationResponse? cachedResult))
-        {
-            logger.LogDebug("Cache HIT: {CacheKey} (culture: {Culture})",
-                cacheKey, culture ?? "invariant");
+        var result = await cache.GetOrCreateAsync(
+            cacheKey,
+            factory,
+            new HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromMinutes(options.Value.CacheExpirationMinutes),
+                LocalCacheExpiration = TimeSpan.FromMinutes(options.Value.CacheExpirationMinutes),
+                Flags = HybridCacheEntryFlags.DisableCompression
+            },
+            tags,
+            cancellationToken);
 
-            result = cachedResult;
-            return true;
-        }
-
-        logger.LogDebug("Cache MISS: {CacheKey} (culture: {Culture})",
+        logger.LogDebug("Retrieved validation result for {CacheKey} (culture: {Culture})", 
             cacheKey, culture ?? "invariant");
 
-        result = null;
-        return false;
-    }
-
-    /// <summary>
-    /// Caches a validation result.
-    /// </summary>
-    /// <param name="documentId">The document identifier.</param>
-    /// <param name="culture">The culture code. Null for invariant content.</param>
-    /// <param name="response">The validation response to cache.</param>
-    public void SetCache(Guid documentId, string? culture, ValidationResponse response)
-    {
-        if (response == null) throw new ArgumentNullException(nameof(response));
-
-        if (CacheExpirationMinutes <= 0)
-        {
-            logger.LogDebug("Caching disabled (CacheExpirationMinutes: {Minutes}), skipping cache for document {DocumentId}",
-                CacheExpirationMinutes, documentId);
-            return;
-        }
-
-        var cacheKey = GetCacheKey(documentId, culture);
-
-        var cacheOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromMinutes(CacheExpirationMinutes))
-            .SetPriority(CacheItemPriority.Low)
-            .RegisterPostEvictionCallback(OnCacheEntryEvicted);
-
-        cache.Set(cacheKey, response, cacheOptions);
-        TrackCacheKey(documentId, cacheKey);
-
-        logger.LogDebug("Cached: {CacheKey} (culture: {Culture})",
-            cacheKey, culture ?? "invariant");
+        return result;
     }
 
     /// <summary>
     /// Clears cached validation result for a specific document and culture.
     /// </summary>
-    /// <param name="documentId">The document identifier.</param>
-    /// <param name="culture">The culture code. Null for invariant content.</param>
-    public void ClearForDocumentCulture(Guid documentId, string? culture)
+    public async Task ClearForDocumentCultureAsync(Guid documentId, string? culture, CancellationToken cancellationToken = default)
     {
-        var cacheKey = GetCacheKey(documentId, culture);
-        cache.Remove(cacheKey);
-        RemoveCacheKeyTracking(documentId, cacheKey);
-
-        logger.LogDebug("Cleared cache: {CacheKey} (culture: {Culture})",
-            cacheKey, culture ?? "invariant");
+        var tag = GetCultureTag(documentId, culture);
+        await cache.RemoveByTagAsync(tag, cancellationToken);
+        
+        logger.LogDebug("Cleared cache by tag: {Tag} (culture: {Culture})", 
+            tag, culture ?? "invariant");
     }
 
     /// <summary>
     /// Clears all cached validation results for a document (all cultures).
     /// </summary>
-    /// <param name="documentId">The document identifier.</param>
-    public void ClearForDocument(Guid documentId)
+    public async Task ClearForDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
-        if (_documentCacheKeys.TryRemove(documentId, out var cacheKeys))
-        {
-            var keysList = cacheKeys.ToList();
-            foreach (var cacheKey in keysList)
-            {
-                cache.Remove(cacheKey);
-            }
-
-            logger.LogInformation("Cleared all validation cache for document {DocumentId} ({Count} entries)",
-                documentId, keysList.Count);
-        }
-        else
-        {
-            logger.LogDebug("No cache entries found for document {DocumentId}", documentId);
-        }
+        var tag = GetDocumentTag(documentId);
+        await cache.RemoveByTagAsync(tag, cancellationToken);
+        
+        logger.LogInformation("Cleared all validation cache for document {DocumentId}", documentId);
     }
 
     /// <summary>
     /// Clears all cached validation results.
     /// </summary>
-    public void ClearAll()
+    public async Task ClearAllAsync(CancellationToken cancellationToken = default)
     {
-        var allDocumentIds = _documentCacheKeys.Keys.ToList();
-
-        foreach (var documentId in allDocumentIds)
-        {
-            ClearForDocument(documentId);
-        }
-
-        _documentCacheKeys.Clear();
-
-        logger.LogInformation("Cleared all validation cache ({Count} documents)", allDocumentIds.Count);
+        await cache.RemoveByTagAsync(CacheKeyPrefix, cancellationToken);
+        logger.LogInformation("Cleared all validation cache");
     }
 
     #region Private Methods
 
-    private void TrackCacheKey(Guid documentId, string cacheKey)
+    private static string GetCacheKey(Guid documentId, string? culture)
     {
-        _documentCacheKeys.AddOrUpdate(
-            documentId,
-            _ => new ConcurrentBag<string> { cacheKey },
-            (_, existingKeys) =>
-            {
-                if (!existingKeys.Contains(cacheKey))
-                {
-                    existingKeys.Add(cacheKey);
-                }
-                return existingKeys;
-            });
+        return $"{CacheKeyPrefix}_{documentId}_{culture ?? "invariant"}";
     }
 
-    private void RemoveCacheKeyTracking(Guid documentId, string cacheKey)
+    private static string[] GetCacheTags(Guid documentId, string? culture)
     {
-        if (_documentCacheKeys.TryGetValue(documentId, out var keys))
-        {
-            var updatedKeys = new ConcurrentBag<string>(keys.Where(k => k != cacheKey));
-
-            if (updatedKeys.IsEmpty)
-            {
-                _documentCacheKeys.TryRemove(documentId, out _);
-            }
-            else
-            {
-                _documentCacheKeys.TryUpdate(documentId, updatedKeys, keys);
-            }
-        }
+        return
+        [
+            CacheKeyPrefix,                          // Global tag for all validation cache
+            GetDocumentTag(documentId),             // Document-specific tag
+            GetCultureTag(documentId, culture)      // Document + culture specific tag
+        ];
     }
 
-    private void OnCacheEntryEvicted(object key, object? value, EvictionReason reason, object? state)
-    {
-        if (key is string cacheKey && TryExtractDocumentIdFromCacheKey(cacheKey, out var documentId))
-        {
-            RemoveCacheKeyTracking(documentId, cacheKey);
-            logger.LogTrace("Cache entry evicted: {CacheKey}, reason: {Reason}", cacheKey, reason);
-        }
-    }
+    private static string GetDocumentTag(Guid documentId) 
+        => $"{CacheKeyPrefix}:doc:{documentId}";
 
-    /// <summary>
-    /// Generates a cache key for a document.
-    /// </summary>
-    private static string GetCacheKey(Guid documentId, string? culture) => $"{CacheKeyPrefix}_{documentId}_{culture}";
-
-    private static bool TryExtractDocumentIdFromCacheKey(string cacheKey, out Guid documentId)
-    {
-        var parts = cacheKey.Split('_');
-
-        if (parts.Length >= 2 && Guid.TryParse(parts[1], out var parsedId))
-        {
-            documentId = parsedId;
-            return true;
-        }
-
-        documentId = Guid.Empty;
-        return false;
-    }
+    private static string GetCultureTag(Guid documentId, string? culture) 
+        => $"{CacheKeyPrefix}:doc:{documentId}:culture:{culture ?? "invariant"}";
 
     #endregion
 }

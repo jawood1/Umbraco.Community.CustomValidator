@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -17,6 +16,7 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Controllers;
 
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Options;
 
 [TestFixture]
@@ -31,7 +31,7 @@ public class DocumentValidationControllerTests
     private DocumentValidationController _sut = null!;
 
     private ServiceProvider _serviceProvider = null!;
-    private IMemoryCache _memoryCache = null!;
+    private HybridCache _memoryCache = null!;
 
     [SetUp]
     public void Setup()
@@ -39,10 +39,10 @@ public class DocumentValidationControllerTests
         // Create real services with DI
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddHybridCache();
 
         _serviceProvider = services.BuildServiceProvider();
-        _memoryCache = _serviceProvider.GetRequiredService<IMemoryCache>();
+        _memoryCache = _serviceProvider.GetRequiredService<HybridCache>();
 
         // Create real instances
         _validationService = new DocumentValidationService(
@@ -76,7 +76,6 @@ public class DocumentValidationControllerTests
     public void TearDown()
     {
         _serviceProvider.Dispose();
-        _memoryCache.Dispose();
         _sut.Dispose();
     }
 
@@ -87,42 +86,30 @@ public class DocumentValidationControllerTests
     {
         // Arrange
         var documentId = Guid.NewGuid();
+        var culture = "en-US"; // Use explicit culture to avoid GetCultureFromDomains issues
         var expectedResponse = CreateValidationResponse(documentId);
 
-        // Pre-populate cache
-        _cacheService.SetCache(documentId, null, expectedResponse);
+        // Mock language service
+        _languageServiceMock.Setup(x => x.GetDefaultIsoCodeAsync())
+            .ReturnsAsync("en-GB");
+
+        // Pre-populate cache by calling GetOrSetAsync with factory that returns expected response
+        await _cacheService.GetOrSetAsync(
+            documentId,
+            culture,
+            async (ct) => expectedResponse,
+            CancellationToken.None);
 
         // Act
-        var result = await _sut.ValidateDocument(documentId, null);
+        var result = await _sut.ValidateDocument(documentId, culture);
 
         // Assert
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
 
         var response = okResult!.Value as ValidationResponse;
+        Assert.That(response, Is.Not.Null);
         Assert.That(response!.ContentId, Is.EqualTo(documentId));
-    }
-
-    [Test]
-    public async Task ValidateDocument_WithCacheHit_LogsDebugMessage()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var cachedResponse = CreateValidationResponse(documentId);
-        _cacheService.SetCache(documentId, null, cachedResponse);
-
-        // Act
-        await _sut.ValidateDocument(documentId, null);
-
-        // Assert
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Debug,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Returning cached")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
     }
 
     #endregion
@@ -150,24 +137,6 @@ public class DocumentValidationControllerTests
         Assert.That(response!.ContentId, Is.EqualTo(documentId));
         Assert.That(response.HasValidator, Is.False);
         Assert.That(response.Messages, Is.Empty);
-    }
-
-    [Test]
-    public async Task ValidateDocument_WithNoValidator_CachesResponse()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var content = CreateMockContent();
-
-        SetupUmbracoContext(content);
-
-        // Act
-        await _sut.ValidateDocument(documentId, null);
-
-        // Assert - Check if cached
-        var cached = _cacheService.TryGetCached(documentId, null, out var result);
-        Assert.That(cached, Is.True);
-        Assert.That(result!.HasValidator, Is.False);
     }
 
     [Test]
@@ -228,64 +197,9 @@ public class DocumentValidationControllerTests
         Assert.That(response.Messages.First().Message, Is.EqualTo("Test validation"));
     }
 
-    [Test]
-    public async Task ValidateDocument_WithValidator_CachesResult()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var culture = "en-US"; // Pass explicit culture to avoid GetCultureFromDomains()
-        var content = CreateMockContent();
-
-        var validationService = CreateValidationServiceWithValidator();
-        var sut = new DocumentValidationController(
-            validationService,
-            _cacheService,
-            _umbracoContextAccessorMock.Object,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
-            _loggerMock.Object);
-
-        SetupUmbracoContext(content);
-
-        // Act
-        await sut.ValidateDocument(documentId, culture); // Use culture parameter
-
-        // Assert - Check cache with the same culture
-        var cached = _cacheService.TryGetCached(documentId, culture, out var result);
-        Assert.That(cached, Is.True);
-        Assert.That(result!.HasValidator, Is.True);
-    }
-
     #endregion
 
     #region Culture Handling Tests
-
-    [Test]
-    public async Task ValidateDocument_WithCulture_UsesCultureInCache()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var culture = "en-US";
-        var content = CreateMockContent();
-
-        var validationService = CreateValidationServiceWithValidator();
-        var sut = new DocumentValidationController(
-            validationService,
-            _cacheService,
-            _umbracoContextAccessorMock.Object,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
-            _loggerMock.Object);
-
-        SetupUmbracoContext(content);
-
-        // Act
-        await sut.ValidateDocument(documentId, culture);
-
-        // Assert - Check cache with culture
-        var cached = _cacheService.TryGetCached(documentId, culture, out _);
-        Assert.That(cached, Is.True);
-    }
 
     [Test]
     public async Task ValidateDocument_WithCulture_SetsVariationContext()

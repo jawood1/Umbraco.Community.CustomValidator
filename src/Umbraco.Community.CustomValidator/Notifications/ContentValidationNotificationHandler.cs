@@ -8,10 +8,9 @@ using Umbraco.Extensions;
 using Umbraco.Community.CustomValidator.Services;
 using Umbraco.Community.CustomValidator.Validation;
 using Umbraco.Community.CustomValidator.Models;
+using Microsoft.Extensions.Options;
 
 namespace Umbraco.Community.CustomValidator.Notifications;
-
-using Microsoft.Extensions.Options;
 
 public sealed class ContentValidationNotificationHandler(
     ValidationCacheService cacheService,
@@ -27,7 +26,7 @@ public sealed class ContentValidationNotificationHandler(
     /// <summary>
     /// Clears the validation cache for affected documents and cultures.
     /// </summary>
-    public Task HandleAsync(ContentSavingNotification notification, CancellationToken cancellationToken)
+    public async Task HandleAsync(ContentSavingNotification notification, CancellationToken cancellationToken)
     {
         foreach (var entity in notification.SavedEntities)
         {
@@ -41,7 +40,7 @@ public sealed class ContentValidationNotificationHandler(
                 {
                     logger.LogDebug("Clearing validation cache for document {DocumentId} ({Name}), culture: {Culture}",
                         entity.Key, entity.Name, culture);
-                    cacheService.ClearForDocumentCulture(entity.Key, culture);
+                    await cacheService.ClearForDocumentCultureAsync(entity.Key, culture, cancellationToken);
                 }
             }
             else
@@ -49,11 +48,9 @@ public sealed class ContentValidationNotificationHandler(
                 logger.LogDebug("Clearing validation cache for invariant document {DocumentId} ({Name})",
                     entity.Key, entity.Name);
 
-                cacheService.ClearForDocumentCulture(entity.Key, null);
+                await cacheService.ClearForDocumentCultureAsync(entity.Key, null, cancellationToken);
             }
         }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -117,12 +114,13 @@ public sealed class ContentValidationNotificationHandler(
                 variationContextAccessor.VariationContext = new VariationContext(culture);
                 var messages = await validationService.ValidateAsync(publishedContent);
 
-                cacheService.SetCache(publishedContent.Key, culture, new ValidationResponse
+                await cacheService.GetOrSetAsync(publishedContent.Key, culture, _ => 
+                ValueTask.FromResult(new ValidationResponse
                 {
                     ContentId = publishedContent.Key,
                     HasValidator = true,
                     Messages = messages
-                });
+                }));
 
                 errorCount += CountErrors(messages);
             }
@@ -132,12 +130,13 @@ public sealed class ContentValidationNotificationHandler(
             // Invariant content
             var messages = await validationService.ValidateAsync(publishedContent);
 
-            cacheService.SetCache(publishedContent.Key, null, new ValidationResponse
+            await cacheService.GetOrSetAsync(publishedContent.Key, null, _ => 
+            ValueTask.FromResult(new ValidationResponse     
             {
                 ContentId = publishedContent.Key,
                 HasValidator = true,
                 Messages = messages
-            });
+            }));
 
             errorCount += CountErrors(messages);
         }

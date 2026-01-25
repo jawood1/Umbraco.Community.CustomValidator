@@ -31,34 +31,27 @@ public sealed class DocumentValidationController(
         try
         {
 
-            if (cacheService.TryGetCached(id, culture, out var cachedResponse))
-            {
-                logger.LogDebug("Returning cached validation for document {DocumentId}, culture: {Culture}",
-                    id, culture ?? "invariant");
-                return Ok(cachedResponse);
-            }
-
-            var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
-            var content = umbracoContext.Content.GetById(preview: true, id);
-
-            if (content == null || !validationService.HasValidator(content))
-            {
-                var noValidatorResponse = new ValidationResponse
+            var response = await cacheService.GetOrSetAsync(
+                id,
+                culture,
+                async _ =>
                 {
-                    ContentId = id,
-                    HasValidator = false,
-                    Messages = []
-                };
+                    var umbracoContext = umbracoContextAccessor.GetRequiredUmbracoContext();
+                    var content = umbracoContext.Content.GetById(preview: true, id);
 
-                cacheService.SetCache(id, culture, noValidatorResponse);
+                    if (content == null || !validationService.HasValidator(content))
+                    {
+                        return new ValidationResponse
+                        {
+                            ContentId = id,
+                            HasValidator = false,
+                            Messages = []
+                        };
+                    }
 
-                return Ok(noValidatorResponse);
-            }
-
-            var response = await ValidateDocument(id, culture, content);
-
-            cacheService.SetCache(id, culture, response);
-
+                    return await ValidateDocument(id, culture, content);
+                });
+                
             return Ok(response);
         }
         catch (Exception ex)

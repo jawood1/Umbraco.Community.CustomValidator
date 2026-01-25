@@ -1,171 +1,97 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Services;
-using Microsoft.Extensions.Options;
 
 namespace Umbraco.Community.CustomValidator.Tests.Services;
 
 [TestFixture]
 public class ValidationCacheServiceTests
 {
-    private IMemoryCache _memoryCache = null!;
+    private HybridCache _hybridCache = null!;
     private Mock<ILogger<ValidationCacheService>> _loggerMock = null!;
+    private Mock<IOptions<CustomValidatorOptions>> _optionsMock = null!;
     private ValidationCacheService _sut = null!;
+    private CustomValidatorOptions _options = null!;
 
     [SetUp]
     public void Setup()
     {
-        var mockOptions = new Mock<IOptions<CustomValidatorOptions>>();
-        mockOptions.Setup(s => s.Value).Returns(new CustomValidatorOptions());
+        _options = new CustomValidatorOptions
+        {
+            CacheExpirationMinutes = 30,
+            TreatWarningsAsErrors = false
+        };
 
-        _memoryCache = new MemoryCache(new MemoryCacheOptions());
+        _optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        _optionsMock.Setup(x => x.Value).Returns(_options);
+
+        // Create real HybridCache instance
+        var services = new ServiceCollection();
+        services.AddHybridCache();
+        var serviceProvider = services.BuildServiceProvider();
+        _hybridCache = serviceProvider.GetRequiredService<HybridCache>();
+
         _loggerMock = new Mock<ILogger<ValidationCacheService>>();
-        _sut = new ValidationCacheService(_memoryCache, mockOptions.Object, _loggerMock.Object);
+        _sut = new ValidationCacheService(_hybridCache, _optionsMock.Object, _loggerMock.Object);
     }
 
-    [TearDown]
-    public void TearDown()
-    {
-        _memoryCache.Dispose();
-    }
-
-    #region TryGetCached Tests
+    #region GetOrSetAsync Tests
 
     [Test]
-    public void TryGetCached_WhenCacheEmpty_ReturnsFalse()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-
-        // Act
-        var result = _sut.TryGetCached(documentId, null, out var cachedResponse);
-
-        // Assert
-        Assert.That(result, Is.False);
-        Assert.That(cachedResponse, Is.Null);
-    }
-
-    [Test]
-    public void TryGetCached_WhenCacheHit_ReturnsTrueWithCachedData()
+    public async Task GetOrSetAsync_WhenCacheEmpty_CallsFactory()
     {
         // Arrange
         var documentId = Guid.NewGuid();
         var expectedResponse = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, null, expectedResponse);
+        var factoryCalled = false;
 
         // Act
-        var result = _sut.TryGetCached(documentId, null, out var cachedResponse);
+        var result = await _sut.GetOrSetAsync(
+            documentId,
+            null,
+            async (ct) =>
+            {
+                factoryCalled = true;
+                return await new ValueTask<ValidationResponse>(expectedResponse);
+            });
 
         // Assert
-        Assert.That(result, Is.True);
-        Assert.That(cachedResponse, Is.Not.Null);
-        Assert.That(cachedResponse!.ContentId, Is.EqualTo(documentId));
-        Assert.That(cachedResponse.HasValidator, Is.True);
+        Assert.That(factoryCalled, Is.True);
+        Assert.That(result.ContentId, Is.EqualTo(documentId));
     }
 
     [Test]
-    public void TryGetCached_WithInvariantContent_UsesCorrectCacheKey()
+    public async Task GetOrSetAsync_CalledTwice_UsesCacheOnSecondCall()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, null, response);
+        var expectedResponse = CreateValidationResponse(documentId);
+        var factoryCallCount = 0;
 
-        // Act
-        var result = _sut.TryGetCached(documentId, null, out var cachedResponse);
+        // Act - Call twice
+        await _sut.GetOrSetAsync(documentId, null, async (ct) =>
+        {
+            factoryCallCount++;
+            return await new ValueTask<ValidationResponse>(expectedResponse);
+        });
 
-        // Assert
-        Assert.That(result, Is.True);
-        Assert.That(cachedResponse, Is.Not.Null);
+        await _sut.GetOrSetAsync(documentId, null, async (ct) =>
+        {
+            factoryCallCount++;
+            return await new ValueTask<ValidationResponse>(expectedResponse);
+        });
+
+        // Assert - Factory should only be called once (second call used cache)
+        Assert.That(factoryCallCount, Is.EqualTo(1));
     }
 
     [Test]
-    public void TryGetCached_WithCulture_UsesCorrectCacheKey()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var culture = "en-US";
-        var response = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, culture, response);
-
-        // Act
-        var result = _sut.TryGetCached(documentId, culture, out var cachedResponse);
-
-        // Assert
-        Assert.That(result, Is.True);
-        Assert.That(cachedResponse, Is.Not.Null);
-    }
-
-    [Test]
-    public void TryGetCached_WithDifferentCulture_ReturnsFalse()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, "en-US", response);
-
-        // Act - try to get with different culture
-        var result = _sut.TryGetCached(documentId, "da-DK", out var cachedResponse);
-
-        // Assert
-        Assert.That(result, Is.False);
-        Assert.That(cachedResponse, Is.Null);
-    }
-
-    #endregion
-
-    #region SetCache Tests
-
-    [Test]
-    public void SetCache_WithValidResponse_CachesSuccessfully()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-
-        // Act
-        _sut.SetCache(documentId, null, response);
-
-        // Assert
-        var cached = _sut.TryGetCached(documentId, null, out var cachedResponse);
-        Assert.That(cached, Is.True);
-        Assert.That(cachedResponse, Is.Not.Null);
-    }
-
-    [Test]
-    public void SetCache_WithNullResponse_ThrowsArgumentNullException()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-
-        // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => _sut.SetCache(documentId, null, null!));
-    }
-
-    [Test]
-    public void SetCache_WithCulture_CachesForSpecificCulture()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var culture = "en-US";
-        var response = CreateValidationResponse(documentId);
-
-        // Act
-        _sut.SetCache(documentId, culture, response);
-
-        // Assert
-        var cachedForCulture = _sut.TryGetCached(documentId, culture, out _);
-        var cachedForInvariant = _sut.TryGetCached(documentId, null, out _);
-
-        Assert.That(cachedForCulture, Is.True);
-        Assert.That(cachedForInvariant, Is.False);
-    }
-
-    [Test]
-    public void SetCache_MultipleCultures_CachesSeparately()
+    public async Task GetOrSetAsync_WithCulture_CachesSeparately()
     {
         // Arrange
         var documentId = Guid.NewGuid();
@@ -173,249 +99,276 @@ public class ValidationCacheServiceTests
         var responseDa = CreateValidationResponse(documentId, "da-DK content");
 
         // Act
-        _sut.SetCache(documentId, "en-US", responseEn);
-        _sut.SetCache(documentId, "da-DK", responseDa);
+        var resultEn = await _sut.GetOrSetAsync(documentId, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(responseEn));
+
+        var resultDa = await _sut.GetOrSetAsync(documentId, "da-DK",
+            async (ct) => await new ValueTask<ValidationResponse>(responseDa));
 
         // Assert
-        _sut.TryGetCached(documentId, "en-US", out var cachedEn);
-        _sut.TryGetCached(documentId, "da-DK", out var cachedDa);
-
-        Assert.That(cachedEn, Is.Not.Null);
-        Assert.That(cachedDa, Is.Not.Null);
-        Assert.That(cachedEn!.Messages?.First().Message, Is.EqualTo("en-US content"));
-        Assert.That(cachedDa!.Messages?.First().Message, Is.EqualTo("da-DK content"));
+        Assert.That(resultEn.Messages.First().Message, Is.EqualTo("en-US content"));
+        Assert.That(resultDa.Messages.First().Message, Is.EqualTo("da-DK content"));
     }
 
     [Test]
-    public void SetCache_OverwritesExistingCache()
+    public async Task GetOrSetAsync_WithDifferentCultures_DoesNotShareCache()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var firstResponse = CreateValidationResponse(documentId, "First message");
-        var secondResponse = CreateValidationResponse(documentId, "Second message");
+        var enCallCount = 0;
+        var daCallCount = 0;
 
-        // Act
-        _sut.SetCache(documentId, null, firstResponse);
-        _sut.SetCache(documentId, null, secondResponse);
+        // Act - Call same doc, different cultures
+        await _sut.GetOrSetAsync(documentId, "en-US", async (ct) =>
+        {
+            enCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
 
-        // Assert
-        _sut.TryGetCached(documentId, null, out var cached);
-        Assert.That(cached!.Messages?.First().Message, Is.EqualTo("Second message"));
+        await _sut.GetOrSetAsync(documentId, "da-DK", async (ct) =>
+        {
+            daCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        // Assert - Both factories should be called (different cache keys)
+        Assert.That(enCallCount, Is.EqualTo(1));
+        Assert.That(daCallCount, Is.EqualTo(1));
     }
 
     #endregion
 
-    #region ClearForDocumentCulture Tests
+    #region ClearForDocumentCultureAsync Tests
 
     [Test]
-    public void ClearForDocumentCulture_RemovesSpecificCultureCache()
+    public async Task ClearForDocumentCultureAsync_RemovesSpecificCultureCache()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, "en-US", response);
-        _sut.SetCache(documentId, "da-DK", response);
+        var enCallCount = 0;
+        var daCallCount = 0;
 
-        // Act
-        _sut.ClearForDocumentCulture(documentId, "en-US");
+        // Pre-populate both caches
+        await _sut.GetOrSetAsync(documentId, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
+        await _sut.GetOrSetAsync(documentId, "da-DK",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
 
-        // Assert
-        var enCached = _sut.TryGetCached(documentId, "en-US", out _);
-        var daCached = _sut.TryGetCached(documentId, "da-DK", out _);
+        // Act - Clear only en-US
+        await _sut.ClearForDocumentCultureAsync(documentId, "en-US");
 
-        Assert.That(enCached, Is.False, "en-US should be cleared");
-        Assert.That(daCached, Is.True, "da-DK should still be cached");
+        // Assert - en-US factory should be called again, da-DK should use cache
+        await _sut.GetOrSetAsync(documentId, "en-US", async (ct) =>
+        {
+            enCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        await _sut.GetOrSetAsync(documentId, "da-DK", async (ct) =>
+        {
+            daCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        Assert.That(enCallCount, Is.EqualTo(1), "en-US cache should be cleared");
+        Assert.That(daCallCount, Is.EqualTo(0), "da-DK cache should still exist");
     }
 
     [Test]
-    public void ClearForDocumentCulture_WithInvariant_ClearsInvariantOnly()
+    public async Task ClearForDocumentCultureAsync_WithInvariant_ClearsInvariantOnly()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, null, response);
-        _sut.SetCache(documentId, "en-US", response);
+        var invariantCallCount = 0;
+        var cultureCallCount = 0;
 
-        // Act
-        _sut.ClearForDocumentCulture(documentId, null);
+        // Pre-populate both
+        await _sut.GetOrSetAsync(documentId, null,
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
+        await _sut.GetOrSetAsync(documentId, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
+
+        // Act - Clear invariant only
+        await _sut.ClearForDocumentCultureAsync(documentId, null);
 
         // Assert
-        var invariantCached = _sut.TryGetCached(documentId, null, out _);
-        var cultureCached = _sut.TryGetCached(documentId, "en-US", out _);
+        await _sut.GetOrSetAsync(documentId, null, async (ct) =>
+        {
+            invariantCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
 
-        Assert.That(invariantCached, Is.False);
-        Assert.That(cultureCached, Is.True);
+        await _sut.GetOrSetAsync(documentId, "en-US", async (ct) =>
+        {
+            cultureCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        Assert.That(invariantCallCount, Is.EqualTo(1), "Invariant should be cleared");
+        Assert.That(cultureCallCount, Is.EqualTo(0), "Culture cache should still exist");
     }
 
     [Test]
-    public void ClearForDocumentCulture_WhenNotCached_DoesNotThrow()
+    public async Task ClearForDocumentCultureAsync_WhenNotCached_DoesNotThrow()
     {
         // Arrange
         var documentId = Guid.NewGuid();
 
         // Act & Assert
-        Assert.DoesNotThrow(() => _sut.ClearForDocumentCulture(documentId, "en-US"));
+        Assert.DoesNotThrowAsync(async () =>
+            await _sut.ClearForDocumentCultureAsync(documentId, "en-US"));
     }
 
     #endregion
 
-    #region ClearForDocument Tests
+    #region ClearForDocumentAsync Tests
 
     [Test]
-    public void ClearForDocument_RemovesAllCulturesForDocument()
+    public async Task ClearForDocumentAsync_RemovesAllCulturesForDocument()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, null, response);
-        _sut.SetCache(documentId, "en-US", response);
-        _sut.SetCache(documentId, "da-DK", response);
+        var invariantCallCount = 0;
+        var enCallCount = 0;
+        var daCallCount = 0;
 
-        // Act
-        _sut.ClearForDocument(documentId);
+        // Pre-populate multiple cultures
+        await _sut.GetOrSetAsync(documentId, null,
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
+        await _sut.GetOrSetAsync(documentId, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
+        await _sut.GetOrSetAsync(documentId, "da-DK",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
 
-        // Assert
-        var invariantCached = _sut.TryGetCached(documentId, null, out _);
-        var enCached = _sut.TryGetCached(documentId, "en-US", out _);
-        var daCached = _sut.TryGetCached(documentId, "da-DK", out _);
+        // Act - Clear all cultures for document
+        await _sut.ClearForDocumentAsync(documentId);
 
-        Assert.That(invariantCached, Is.False);
-        Assert.That(enCached, Is.False);
-        Assert.That(daCached, Is.False);
+        // Assert - All factories should be called (all caches cleared)
+        await _sut.GetOrSetAsync(documentId, null, async (ct) =>
+        {
+            invariantCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        await _sut.GetOrSetAsync(documentId, "en-US", async (ct) =>
+        {
+            enCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        await _sut.GetOrSetAsync(documentId, "da-DK", async (ct) =>
+        {
+            daCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        Assert.That(invariantCallCount, Is.EqualTo(1));
+        Assert.That(enCallCount, Is.EqualTo(1));
+        Assert.That(daCallCount, Is.EqualTo(1));
     }
 
     [Test]
-    public void ClearForDocument_DoesNotAffectOtherDocuments()
+    public async Task ClearForDocumentAsync_DoesNotAffectOtherDocuments()
     {
         // Arrange
         var document1 = Guid.NewGuid();
         var document2 = Guid.NewGuid();
-        var response = CreateValidationResponse(document1);
-        _sut.SetCache(document1, "en-US", response);
-        _sut.SetCache(document2, "en-US", response);
+        var doc1CallCount = 0;
+        var doc2CallCount = 0;
 
-        // Act
-        _sut.ClearForDocument(document1);
+        // Pre-populate both documents
+        await _sut.GetOrSetAsync(document1, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(document1)));
+        await _sut.GetOrSetAsync(document2, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(document2)));
 
-        // Assert
-        var doc1Cached = _sut.TryGetCached(document1, "en-US", out _);
-        var doc2Cached = _sut.TryGetCached(document2, "en-US", out _);
-
-        Assert.That(doc1Cached, Is.False);
-        Assert.That(doc2Cached, Is.True);
-    }
-
-    [Test]
-    public void ClearForDocument_WhenCacheExists_LogsInformationWithCount()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-        _sut.SetCache(documentId, "en-US", response);
-        _sut.SetCache(documentId, "da-DK", response);
-
-        // Act
-        _sut.ClearForDocument(documentId);
+        // Act - Clear only document1
+        await _sut.ClearForDocumentAsync(document1);
 
         // Assert
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Information,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("2 entries")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+        await _sut.GetOrSetAsync(document1, "en-US", async (ct) =>
+        {
+            doc1CallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(document1));
+        });
+
+        await _sut.GetOrSetAsync(document2, "en-US", async (ct) =>
+        {
+            doc2CallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(document2));
+        });
+
+        Assert.That(doc1CallCount, Is.EqualTo(1), "Document 1 cache should be cleared");
+        Assert.That(doc2CallCount, Is.EqualTo(0), "Document 2 cache should still exist");
     }
 
     #endregion
 
-    #region ClearAll Tests
+    #region ClearAllAsync Tests
 
     [Test]
-    public void ClearAll_RemovesAllCachedDocuments()
+    public async Task ClearAllAsync_RemovesAllCachedDocuments()
     {
         // Arrange
         var doc1 = Guid.NewGuid();
         var doc2 = Guid.NewGuid();
-        var response = CreateValidationResponse(doc1);
+        var doc1CallCount = 0;
+        var doc2CallCount = 0;
 
-        _sut.SetCache(doc1, "en-US", response);
-        _sut.SetCache(doc1, "da-DK", response);
-        _sut.SetCache(doc2, "en-US", response);
+        // Pre-populate multiple documents with multiple cultures
+        await _sut.GetOrSetAsync(doc1, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(doc1)));
+        await _sut.GetOrSetAsync(doc1, "da-DK",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(doc1)));
+        await _sut.GetOrSetAsync(doc2, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(doc2)));
 
-        // Act
-        _sut.ClearAll();
+        // Act - Clear all
+        await _sut.ClearAllAsync();
 
-        // Assert
-        var doc1EnCached = _sut.TryGetCached(doc1, "en-US", out _);
-        var doc1DaCached = _sut.TryGetCached(doc1, "da-DK", out _);
-        var doc2EnCached = _sut.TryGetCached(doc2, "en-US", out _);
+        // Assert - All factories should be called (all caches cleared)
+        await _sut.GetOrSetAsync(doc1, "en-US", async (ct) =>
+        {
+            doc1CallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(doc1));
+        });
 
-        Assert.That(doc1EnCached, Is.False);
-        Assert.That(doc1DaCached, Is.False);
-        Assert.That(doc2EnCached, Is.False);
+        await _sut.GetOrSetAsync(doc2, "en-US", async (ct) =>
+        {
+            doc2CallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(doc2));
+        });
+
+        Assert.That(doc1CallCount, Is.EqualTo(1));
+        Assert.That(doc2CallCount, Is.EqualTo(1));
     }
 
     [Test]
-    public void ClearAll_LogsInformationWithDocumentCount()
-    {
-        // Arrange
-        var doc1 = Guid.NewGuid();
-        var doc2 = Guid.NewGuid();
-        var response = CreateValidationResponse(doc1);
-
-        _sut.SetCache(doc1, "en-US", response);
-        _sut.SetCache(doc2, "en-US", response);
-
-        // Act
-        _sut.ClearAll();
-
-        // Assert
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Information,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("2 documents")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
-    }
-
-    [Test]
-    public void ClearAll_WhenCacheEmpty_DoesNotThrow()
+    public async Task ClearAllAsync_WhenCacheEmpty_DoesNotThrow()
     {
         // Act & Assert
-        Assert.DoesNotThrow(() => _sut.ClearAll());
+        Assert.DoesNotThrowAsync(async () => await _sut.ClearAllAsync());
     }
 
-    #endregion
-
-    #region Cache Expiration Tests
-
     [Test]
-    public void SetCache_CacheExpires_AutomaticallyRemoved()
+    public async Task ClearAllAsync_LogsInformation()
     {
         // Arrange
-        var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
-
-        // Create a cache with 1 second expiration for testing
-        var testCache = new MemoryCache(new MemoryCacheOptions());
-
-        // Override the expiration by manually setting with short timeout
-        var cacheKey = $"customValidation_{documentId}_";
-        testCache.Set(cacheKey, response, TimeSpan.FromMilliseconds(100));
+        await _sut.GetOrSetAsync(Guid.NewGuid(), null,
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(Guid.NewGuid())));
 
         // Act
-        Thread.Sleep(150); // Wait for expiration
+        await _sut.ClearAllAsync();
 
         // Assert
-        var cached = testCache.TryGetValue(cacheKey, out ValidationResponse? _);
-        Assert.That(cached, Is.False);
-
-        // Cleanup
-        testCache.Dispose();
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Cleared all validation cache")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     #endregion
@@ -423,42 +376,155 @@ public class ValidationCacheServiceTests
     #region Cache Disabled Tests
 
     [Test]
-    public void TryGetCached_WhenCachingDisabled_ReturnsFalse()
+    public async Task GetOrSetAsync_WhenCachingDisabled_AlwaysCallsFactory()
     {
         // Arrange
-        var options = new CustomValidatorOptions { CacheExpirationMinutes = 0 };
-        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
-        optionsMock.Setup(x => x.Value).Returns(options);
-
-        var sut = new ValidationCacheService(_memoryCache, optionsMock.Object, _loggerMock.Object);
+        _options.CacheExpirationMinutes = 0;
         var documentId = Guid.NewGuid();
+        var factoryCallCount = 0;
 
-        // Act
-        var result = sut.TryGetCached(documentId, null, out var cachedResponse);
+        // Act - Call twice
+        await _sut.GetOrSetAsync(documentId, null, async (ct) =>
+        {
+            factoryCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
 
-        // Assert
-        Assert.That(result, Is.False);
-        Assert.That(cachedResponse, Is.Null);
+        await _sut.GetOrSetAsync(documentId, null, async (ct) =>
+        {
+            factoryCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        // Assert - Factory should be called twice (no caching)
+        Assert.That(factoryCallCount, Is.EqualTo(2));
     }
 
     [Test]
-    public void SetCache_WhenCachingDisabled_DoesNotCache()
+    public async Task GetOrSetAsync_WhenCachingDisabled_LogsDebugMessage()
     {
         // Arrange
-        var options = new CustomValidatorOptions { CacheExpirationMinutes = 0 };
-        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
-        optionsMock.Setup(x => x.Value).Returns(options);
-
-        var sut = new ValidationCacheService(_memoryCache, optionsMock.Object, _loggerMock.Object);
+        _options.CacheExpirationMinutes = 0;
         var documentId = Guid.NewGuid();
-        var response = CreateValidationResponse(documentId);
 
         // Act
-        sut.SetCache(documentId, null, response);
+        await _sut.GetOrSetAsync(documentId, null,
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
 
-        // Assert - Should not be cached
-        var cached = sut.TryGetCached(documentId, null, out _);
-        Assert.That(cached, Is.False);
+        // Assert
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Caching disabled")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Tag-Based Invalidation Tests
+
+    [Test]
+    public async Task ClearForDocumentAsync_ClearsAllCulturesForDocument()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var enCallCount = 0;
+        var daCallCount = 0;
+
+        // Pre-populate
+        await _sut.GetOrSetAsync(documentId, "en-US",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
+        await _sut.GetOrSetAsync(documentId, "da-DK",
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId)));
+
+        // Act - Clear all cultures for document
+        await _sut.ClearForDocumentAsync(documentId);
+
+        // Assert - Both should be cleared
+        await _sut.GetOrSetAsync(documentId, "en-US", async (ct) =>
+        {
+            enCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        await _sut.GetOrSetAsync(documentId, "da-DK", async (ct) =>
+        {
+            daCallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+        });
+
+        Assert.That(enCallCount, Is.EqualTo(1), "en-US should be cleared");
+        Assert.That(daCallCount, Is.EqualTo(1), "da-DK should be cleared");
+    }
+
+    [Test]
+    public async Task ClearAllAsync_ClearsAllDocuments()
+    {
+        // Arrange
+        var doc1 = Guid.NewGuid();
+        var doc2 = Guid.NewGuid();
+        var doc1CallCount = 0;
+        var doc2CallCount = 0;
+
+        // Pre-populate multiple documents
+        await _sut.GetOrSetAsync(doc1, null,
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(doc1)));
+        await _sut.GetOrSetAsync(doc2, null,
+            async (ct) => await new ValueTask<ValidationResponse>(CreateValidationResponse(doc2)));
+
+        // Act
+        await _sut.ClearAllAsync();
+
+        // Assert - All should be cleared
+        await _sut.GetOrSetAsync(doc1, null, async (ct) =>
+        {
+            doc1CallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(doc1));
+        });
+
+        await _sut.GetOrSetAsync(doc2, null, async (ct) =>
+        {
+            doc2CallCount++;
+            return await new ValueTask<ValidationResponse>(CreateValidationResponse(doc2));
+        });
+
+        Assert.That(doc1CallCount, Is.EqualTo(1));
+        Assert.That(doc2CallCount, Is.EqualTo(1));
+    }
+
+    #endregion
+
+    #region Concurrent Access Tests
+
+    [Test]
+    public async Task GetOrSetAsync_ConcurrentCalls_ThreadSafe()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var factoryCallCount = 0;
+        var lockObject = new object();
+
+        // Act - Multiple concurrent calls for same key
+        var tasks = Enumerable.Range(0, 10).Select(_ =>
+            _sut.GetOrSetAsync(documentId, null, async (ct) =>
+            {
+                lock (lockObject)
+                {
+                    factoryCallCount++;
+                }
+                await Task.Delay(10, ct); // Simulate work
+                return await new ValueTask<ValidationResponse>(CreateValidationResponse(documentId));
+            })
+        ).ToArray();
+
+        await Task.WhenAll(tasks);
+
+        // Assert - Factory should only be called once (HybridCache stampede protection)
+        Assert.That(factoryCallCount, Is.EqualTo(1),
+            "Factory should only execute once despite concurrent calls");
     }
 
     #endregion

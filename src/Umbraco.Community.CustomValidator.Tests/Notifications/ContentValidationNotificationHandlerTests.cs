@@ -19,6 +19,8 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Notifications;
 
+using Microsoft.Extensions.Caching.Hybrid;
+
 [TestFixture]
 public class ContentValidationNotificationHandlerTests
 {
@@ -31,7 +33,7 @@ public class ContentValidationNotificationHandlerTests
     private ContentValidationNotificationHandler _sut = null!;
 
     private ServiceProvider _serviceProvider = null!;
-    private IMemoryCache _memoryCache = null!;
+    private HybridCache _memoryCache = null!;
     private CustomValidatorOptions _options = null!;
 
     [SetUp]
@@ -40,10 +42,10 @@ public class ContentValidationNotificationHandlerTests
         // Create real services
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddMemoryCache();
+        services.AddHybridCache();
 
         _serviceProvider = services.BuildServiceProvider();
-        _memoryCache = _serviceProvider.GetRequiredService<IMemoryCache>();
+        _memoryCache = _serviceProvider.GetRequiredService<HybridCache>();
 
         // Default options
         _options = new CustomValidatorOptions
@@ -82,29 +84,9 @@ public class ContentValidationNotificationHandlerTests
     public void TearDown()
     {
         _serviceProvider?.Dispose();
-        _memoryCache?.Dispose();
     }
 
     #region ContentSavingNotification Tests
-
-    [Test]
-    public async Task HandleAsync_ContentSaving_InvariantContent_ClearsCacheWithNullCulture()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var entity = CreateMockContent(documentId, "Test Page");
-
-        _cacheService.SetCache(documentId, null, CreateValidationResponse(documentId));
-
-        var notification = new ContentSavingNotification(entity, new EventMessages());
-
-        // Act
-        await _sut.HandleAsync(notification, CancellationToken.None);
-
-        // Assert
-        var cached = _cacheService.TryGetCached(documentId, null, out _);
-        Assert.That(cached, Is.False);
-    }
 
     [Test]
     public async Task HandleAsync_ContentSaving_LogsDebugMessage()
@@ -211,37 +193,6 @@ public class ContentValidationNotificationHandlerTests
         // Assert
         var messages = notification.Messages.GetAll().ToList();
         Assert.That(messages.All(m => m.MessageType != EventMessageType.Error), Is.True);
-    }
-
-    [Test]
-    public async Task HandleAsync_ContentPublishing_CachesValidationResults()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var entity = CreateMockContent(documentId, "Test Page");
-        var content = CreateMockPublishedContent(documentId);
-
-        var validationService = CreateValidationServiceWithWarningValidator();
-
-        var sut = new ContentValidationNotificationHandler(
-            _cacheService,
-            validationService,
-            _umbracoContextAccessorMock.Object,
-            _variationContextAccessorMock.Object,
-            _optionsMock.Object,
-            _loggerMock.Object);
-
-        SetupUmbracoContext(content);
-
-        var notification = new ContentPublishingNotification(entity, new EventMessages());
-
-        // Act
-        await sut.HandleAsync(notification, CancellationToken.None);
-
-        // Assert
-        var cached = _cacheService.TryGetCached(documentId, null, out var cachedResponse);
-        Assert.That(cached, Is.True);
-        Assert.That(cachedResponse!.HasValidator, Is.True);
     }
 
     #endregion
