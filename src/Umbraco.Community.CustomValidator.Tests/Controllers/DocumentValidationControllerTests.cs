@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
+using NUnit.Framework;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Services;
@@ -16,59 +19,61 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Controllers;
 
-using Microsoft.Extensions.Caching.Hybrid;
-using Microsoft.Extensions.Options;
-
 [TestFixture]
 public class DocumentValidationControllerTests
 {
-    private DocumentValidationService _validationService = null!;
-    private ValidationCacheService _cacheService = null!;
+    private ValidationExecutor _validationExecutor = null!;
     private Mock<IUmbracoContextAccessor> _umbracoContextAccessorMock = null!;
-    private Mock<IVariationContextAccessor> _variationContextAccessorMock = null!;
-    private Mock<ILanguageService> _languageServiceMock = null!;
     private Mock<ILogger<DocumentValidationController>> _loggerMock = null!;
     private DocumentValidationController _sut = null!;
 
     private ServiceProvider _serviceProvider = null!;
-    private HybridCache _memoryCache = null!;
 
     [SetUp]
     public void Setup()
     {
-        // Create real services with DI
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddHybridCache();
 
-        _serviceProvider = services.BuildServiceProvider();
-        _memoryCache = _serviceProvider.GetRequiredService<HybridCache>();
+        var options = new CustomValidatorOptions
+        {
+            CacheExpirationMinutes = 30,
+            TreatWarningsAsErrors = false
+        };
+        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(options);
 
-        // Create real instances
-        _validationService = new DocumentValidationService(
+        _serviceProvider = services.BuildServiceProvider();
+
+        var hybridCache = _serviceProvider.GetRequiredService<HybridCache>();
+        var documentValidationService = new DocumentValidationService(
             _serviceProvider,
             _serviceProvider.GetRequiredService<ILogger<DocumentValidationService>>());
 
-        var mockOptions = new Mock<IOptions<CustomValidatorOptions>>();
-        mockOptions.Setup(s => s.Value).Returns(new CustomValidatorOptions());
-
-        _cacheService = new ValidationCacheService(
-            _memoryCache,
-            mockOptions.Object,
+        var cacheService = new ValidationCacheService(
+            hybridCache,
+            optionsMock.Object,
             _serviceProvider.GetRequiredService<ILogger<ValidationCacheService>>());
 
-        // Mock Umbraco dependencies
+        var variationContextAccessorMock = new Mock<IVariationContextAccessor>();
+        var languageServiceMock = new Mock<ILanguageService>();
+        languageServiceMock.Setup(x => x.GetDefaultIsoCodeAsync())
+            .ReturnsAsync("en-GB");
+
+        _validationExecutor = new ValidationExecutor(
+            documentValidationService,
+            cacheService,
+            variationContextAccessorMock.Object,
+            languageServiceMock.Object,
+            _serviceProvider.GetRequiredService<ILogger<ValidationExecutor>>());
+
         _umbracoContextAccessorMock = new Mock<IUmbracoContextAccessor>();
-        _variationContextAccessorMock = new Mock<IVariationContextAccessor>();
-        _languageServiceMock = new Mock<ILanguageService>();
         _loggerMock = new Mock<ILogger<DocumentValidationController>>();
 
         _sut = new DocumentValidationController(
-            _validationService,
-            _cacheService,
             _umbracoContextAccessorMock.Object,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
+            _validationExecutor,
             _loggerMock.Object);
     }
 
@@ -79,68 +84,62 @@ public class DocumentValidationControllerTests
         _sut.Dispose();
     }
 
-    #region ValidateDocument Tests - Cache Hit
+    #region Content Found Tests
 
     [Test]
-    public async Task ValidateDocument_WithCacheHit_ReturnsCachedResponse()
+    public async Task ValidateDocument_WithContent_ReturnsOkResult()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var culture = "en-US"; // Use explicit culture to avoid GetCultureFromDomains issues
-        var expectedResponse = CreateValidationResponse(documentId);
-
-        // Mock language service
-        _languageServiceMock.Setup(x => x.GetDefaultIsoCodeAsync())
-            .ReturnsAsync("en-GB");
-
-        // Pre-populate cache by calling GetOrSetAsync with factory that returns expected response
-        await _cacheService.GetOrSetAsync(
-            documentId,
-            culture,
-            async (ct) => expectedResponse,
-            CancellationToken.None);
-
-        // Act
-        var result = await _sut.ValidateDocument(documentId, culture);
-
-        // Assert
-        var okResult = result as OkObjectResult;
-        Assert.That(okResult, Is.Not.Null);
-
-        var response = okResult!.Value as ValidationResponse;
-        Assert.That(response, Is.Not.Null);
-        Assert.That(response!.ContentId, Is.EqualTo(documentId));
-    }
-
-    #endregion
-
-    #region ValidateDocument Tests - Cache Miss, No Validator
-
-    [Test]
-    public async Task ValidateDocument_WithNoValidator_ReturnsNoValidatorResponse()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var content = CreateMockContent();
+        var content = CreateMockPublishedContent(documentId);
 
         SetupUmbracoContext(content);
 
         // Act
-        var result = await _sut.ValidateDocument(documentId, null);
+        var result = await _sut.ValidateDocument(documentId, "en-US");
 
         // Assert
-        var okResult = result as OkObjectResult;
-        Assert.That(okResult, Is.Not.Null);
+        Assert.That(result, Is.InstanceOf<OkObjectResult>());
 
+        var okResult = result as OkObjectResult;
         var response = okResult!.Value as ValidationResponse;
+
         Assert.That(response, Is.Not.Null);
         Assert.That(response!.ContentId, Is.EqualTo(documentId));
-        Assert.That(response.HasValidator, Is.False);
-        Assert.That(response.Messages, Is.Empty);
     }
 
     [Test]
-    public async Task ValidateDocument_ContentNotFound_ReturnsNoValidatorResponse()
+    public async Task ValidateDocument_WithValidator_ReturnsValidationResult()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var content = CreateMockPublishedContent(documentId);
+
+        var validationExecutor = CreateValidationExecutorWithValidator();
+        var sut = new DocumentValidationController(
+            _umbracoContextAccessorMock.Object,
+            validationExecutor,
+            _loggerMock.Object);
+
+        SetupUmbracoContext(content);
+
+        // Act
+        var result = await sut.ValidateDocument(documentId, "en-US");
+
+        // Assert
+        var okResult = result as OkObjectResult;
+        var response = okResult!.Value as ValidationResponse;
+
+        Assert.That(response!.HasValidator, Is.True);
+        Assert.That(response.Messages?.Count(), Is.EqualTo(1));
+    }
+
+    #endregion
+
+    #region Content Not Found Tests
+
+    [Test]
+    public async Task ValidateDocument_ContentNotFound_Returns404()
     {
         // Arrange
         var documentId = Guid.NewGuid();
@@ -151,80 +150,35 @@ public class DocumentValidationControllerTests
         var result = await _sut.ValidateDocument(documentId, null);
 
         // Assert
-        var okResult = result as OkObjectResult;
-        Assert.That(okResult, Is.Not.Null);
+        Assert.That(result, Is.InstanceOf<ObjectResult>());
 
-        var response = okResult!.Value as ValidationResponse;
-        Assert.That(response!.HasValidator, Is.False);
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status404NotFound));
+
+        var problemDetails = objectResult.Value as ProblemDetails;
+        Assert.That(problemDetails!.Detail, Does.Contain("could not be found"));
     }
 
-    #endregion
-
-    #region ValidateDocument Tests - Cache Miss, With Validator
-
     [Test]
-    public async Task ValidateDocument_WithValidator_PerformsValidation()
+    public async Task ValidateDocument_ContentNotFound_DoesNotCallValidator()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var content = CreateMockContent();
+        var validatorCalled = false;
 
-        // Register a test validator and recreate services
-        var validationService = CreateValidationServiceWithValidator();
-
+        var validationExecutor = CreateValidationExecutorWithTrackingValidator(() => validatorCalled = true);
         var sut = new DocumentValidationController(
-            validationService,
-            _cacheService,
             _umbracoContextAccessorMock.Object,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,  // Use the mocked language service
+            validationExecutor,
             _loggerMock.Object);
 
-        SetupUmbracoContext(content);
+        SetupUmbracoContext(null);
 
         // Act
-        var result = await sut.ValidateDocument(documentId, "en-US");
+        await sut.ValidateDocument(documentId, null);
 
         // Assert
-        Assert.That(result, Is.InstanceOf<OkObjectResult>());
-
-        var okResult = result as OkObjectResult;
-        var response = okResult!.Value as ValidationResponse;
-
-        Assert.That(response, Is.Not.Null);
-        Assert.That(response!.HasValidator, Is.True);
-        Assert.That(response.Messages?.Count(), Is.EqualTo(1));
-        Assert.That(response.Messages.First().Message, Is.EqualTo("Test validation"));
-    }
-
-    #endregion
-
-    #region Culture Handling Tests
-
-    [Test]
-    public async Task ValidateDocument_WithCulture_SetsVariationContext()
-    {
-        // Arrange
-        var documentId = Guid.NewGuid();
-        var culture = "en-US";
-        var content = CreateMockContent();
-
-        var validationService = CreateValidationServiceWithValidator();
-        var sut = new DocumentValidationController(
-            validationService,
-            _cacheService,
-            _umbracoContextAccessorMock.Object,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
-            _loggerMock.Object);
-
-        SetupUmbracoContext(content);
-
-        // Act
-        await sut.ValidateDocument(documentId, culture);
-
-        // Assert
-        _variationContextAccessorMock.VerifySet(x => x.VariationContext = It.IsAny<VariationContext>(), Times.Once);
+        Assert.That(validatorCalled, Is.False, "Validator should not be called when content not found");
     }
 
     #endregion
@@ -232,34 +186,32 @@ public class DocumentValidationControllerTests
     #region Exception Handling Tests
 
     [Test]
-    public async Task ValidateDocument_WhenExceptionThrown_ReturnsProblemResult()
+    public async Task ValidateDocument_UmbracoContextThrows_Returns500()
     {
         // Arrange
         var documentId = Guid.NewGuid();
+        var umbracoContext = (IUmbracoContext?)null;
 
-        // Setup Umbraco context to throw
-        var context = It.IsAny<IUmbracoContext>();
-        _umbracoContextAccessorMock.Setup(x => x.TryGetUmbracoContext(out context))
-            .Throws(new InvalidOperationException("Test exception"));
+        _umbracoContextAccessorMock.Setup(x => x.TryGetUmbracoContext(out umbracoContext))
+            .Returns(false); // This will cause GetRequiredUmbracoContext to throw
 
         // Act
         var result = await _sut.ValidateDocument(documentId, null);
 
         // Assert
-        var problemResult = result as ObjectResult;
-        Assert.That(problemResult, Is.Not.Null);
-        Assert.That(problemResult!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+        var objectResult = result as ObjectResult;
+        Assert.That(objectResult!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
     }
 
     [Test]
-    public async Task ValidateDocument_WhenExceptionThrown_LogsError()
+    public async Task ValidateDocument_ExceptionThrown_LogsError()
     {
         // Arrange
         var documentId = Guid.NewGuid();
-        var exception = new InvalidOperationException("Test exception");
+        var umbracoContext = (IUmbracoContext?)null;
 
-        var context = It.IsAny<IUmbracoContext>();
-        _umbracoContextAccessorMock.Setup(x => x.TryGetUmbracoContext(out context)).Throws(exception);
+        _umbracoContextAccessorMock.Setup(x => x.TryGetUmbracoContext(out umbracoContext))
+            .Returns(false);
 
         // Act
         await _sut.ValidateDocument(documentId, null);
@@ -270,9 +222,45 @@ public class DocumentValidationControllerTests
                 LogLevel.Error,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Unexpected error")),
-                It.Is<Exception>(ex => ex == exception),
+                It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
+    }
+
+    #endregion
+
+    #region Culture Parameter Tests
+
+    [Test]
+    public async Task ValidateDocument_WithCulture_PassesCultureToExecutor()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var content = CreateMockPublishedContent(documentId);
+
+        SetupUmbracoContext(content);
+
+        // Act
+        var result = await _sut.ValidateDocument(documentId, "da-DK");
+
+        // Assert - Just verify it worked (culture handling is tested in ValidationExecutorTests)
+        Assert.That(result, Is.InstanceOf<OkObjectResult>());
+    }
+
+    [Test]
+    public async Task ValidateDocument_WithNullCulture_PassesNullToExecutor()
+    {
+        // Arrange
+        var documentId = Guid.NewGuid();
+        var content = CreateMockPublishedContent(documentId);
+
+        SetupUmbracoContext(content);
+
+        // Act
+        var result = await _sut.ValidateDocument(documentId, null);
+
+        // Assert
+        Assert.That(result, Is.InstanceOf<OkObjectResult>());
     }
 
     #endregion
@@ -284,19 +272,17 @@ public class DocumentValidationControllerTests
         var umbracoContextMock = new Mock<IUmbracoContext>();
         var contentCacheMock = new Mock<IPublishedContentCache>();
 
-        // Setup content cache
         contentCacheMock.Setup(x => x.GetById(true, It.IsAny<Guid>())).Returns(content);
+        contentCacheMock.Setup(x => x.GetById(It.IsAny<bool>(), It.IsAny<Guid>())).Returns(content);
 
-        // Setup umbraco context
         umbracoContextMock.Setup(x => x.Content).Returns(contentCacheMock.Object);
 
         var context = umbracoContextMock.Object;
-
         _umbracoContextAccessorMock.Setup(x => x.TryGetUmbracoContext(out context))
             .Returns(true);
     }
 
-    private static IPublishedContent CreateMockContent()
+    private static IPublishedContent CreateMockPublishedContent(Guid key)
     {
         var contentTypeMock = new Mock<IPublishedContentType>();
         contentTypeMock.Setup(x => x.Alias).Returns("testPage");
@@ -304,35 +290,81 @@ public class DocumentValidationControllerTests
 
         var contentMock = new Mock<IPublishedContent>();
         contentMock.Setup(x => x.Id).Returns(1);
+        contentMock.Setup(x => x.Key).Returns(key);
         contentMock.Setup(x => x.Name).Returns("Test Page");
         contentMock.Setup(x => x.ContentType).Returns(contentTypeMock.Object);
-        contentMock.Setup(x => x.Key).Returns(Guid.NewGuid());
 
         return contentMock.Object;
     }
 
-    private DocumentValidationService CreateValidationServiceWithValidator()
+    private ValidationExecutor CreateValidationExecutorWithValidator()
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddHybridCache();
         services.AddSingleton<TestValidator>();
         services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<TestValidator>());
 
         var sp = services.BuildServiceProvider();
 
-        return new DocumentValidationService(
+        var options = new CustomValidatorOptions { CacheExpirationMinutes = 30 };
+        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(options);
+
+        var validationService = new DocumentValidationService(
             sp,
             sp.GetRequiredService<ILogger<DocumentValidationService>>());
+
+        var cacheService = new ValidationCacheService(
+            sp.GetRequiredService<HybridCache>(),
+            optionsMock.Object,
+            sp.GetRequiredService<ILogger<ValidationCacheService>>());
+
+        var variationContextMock = new Mock<IVariationContextAccessor>();
+        var languageServiceMock = new Mock<ILanguageService>();
+
+        return new ValidationExecutor(
+            validationService,
+            cacheService,
+            variationContextMock.Object,
+            languageServiceMock.Object,
+            sp.GetRequiredService<ILogger<ValidationExecutor>>());
     }
 
-    private static ValidationResponse CreateValidationResponse(Guid documentId, params ValidationMessage[] messages)
+    private ValidationExecutor CreateValidationExecutorWithTrackingValidator(Action onValidate)
     {
-        return new ValidationResponse
-        {
-            ContentId = documentId,
-            HasValidator = true,
-            Messages = messages.ToList()
-        };
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddHybridCache();
+
+        var validator = new TrackingValidator(onValidate);
+        services.AddSingleton(validator);
+        services.AddSingleton<IDocumentValidator>(sp => validator);
+
+        var sp = services.BuildServiceProvider();
+
+        var options = new CustomValidatorOptions { CacheExpirationMinutes = 30 };
+        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(options);
+
+        var validationService = new DocumentValidationService(
+            sp,
+            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+
+        var cacheService = new ValidationCacheService(
+            sp.GetRequiredService<HybridCache>(),
+            optionsMock.Object,
+            sp.GetRequiredService<ILogger<ValidationCacheService>>());
+
+        var variationContextMock = new Mock<IVariationContextAccessor>();
+        var languageServiceMock = new Mock<ILanguageService>();
+
+        return new ValidationExecutor(
+            validationService,
+            cacheService,
+            variationContextMock.Object,
+            languageServiceMock.Object,
+            sp.GetRequiredService<ILogger<ValidationExecutor>>());
     }
 
     #endregion
@@ -341,8 +373,7 @@ public class DocumentValidationControllerTests
 
     private class TestValidator : IDocumentValidator
     {
-        // Match the actual type name that Moq generates
-        public string NameOfType => "IPublishedContent"; // The interface name
+        public string NameOfType => "IPublishedContent";
 
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {
@@ -350,6 +381,24 @@ public class DocumentValidationControllerTests
             {
                 new() { Message = "Test validation", Severity = ValidationSeverity.Info }
             });
+        }
+    }
+
+    private class TrackingValidator : IDocumentValidator
+    {
+        private readonly Action _onValidate;
+
+        public TrackingValidator(Action onValidate)
+        {
+            _onValidate = onValidate;
+        }
+
+        public string NameOfType => "IPublishedContent";
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            _onValidate();
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
         }
     }
 

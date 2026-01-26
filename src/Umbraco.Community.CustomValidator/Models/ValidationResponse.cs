@@ -2,6 +2,8 @@
 
 namespace Umbraco.Community.CustomValidator.Models;
 
+using System.Text.Json.Serialization;
+
 [ExcludeFromCodeCoverage]
 public sealed record ValidationResponse
 {

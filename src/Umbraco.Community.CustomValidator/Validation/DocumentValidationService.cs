@@ -67,7 +67,7 @@ public sealed class DocumentValidationService
 
                 if (validator == null)
                 {
-                    _logger.LogWarning("Could not resolve validator {ValidatorType}", validatorType.Name);
+                    _logger.LogWarning("Custom Validator: Could not resolve validator {ValidatorType}", validatorType.Name);
                     continue;
                 }
 
@@ -75,7 +75,7 @@ public sealed class DocumentValidationService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error executing validator {ValidatorType} for document {DocumentId}",
+                _logger.LogError(ex, "Custom Validator: Error executing validator {ValidatorType} for document {DocumentId}",
                     validatorType.Name, content.Id);
 
                 messages.Add(new ValidationMessage
