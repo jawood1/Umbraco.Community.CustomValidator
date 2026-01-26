@@ -6,7 +6,7 @@ using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Interfaces;
 using Umbraco.Community.CustomValidator.Models;
 
-namespace Umbraco.Community.CustomValidator.Validation;
+namespace Umbraco.Community.CustomValidator.Services;
 
 public sealed class DocumentValidationService
 {
@@ -63,9 +63,7 @@ public sealed class DocumentValidationService
             try
             {
                 // Resolve validator - creates new instance if Scoped/Transient
-                var validator = _serviceProvider.GetRequiredService(validatorType) as IDocumentValidator;
-
-                if (validator == null)
+                if (_serviceProvider.GetRequiredService(validatorType) is not IDocumentValidator validator)
                 {
                     _logger.LogWarning("Custom Validator: Could not resolve validator {ValidatorType}", validatorType.Name);
                     continue;

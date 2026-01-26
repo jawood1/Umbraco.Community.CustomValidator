@@ -5,9 +5,10 @@ using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Interfaces;
 using Umbraco.Community.CustomValidator.Models;
-using Umbraco.Community.CustomValidator.Validation;
+using Umbraco.Community.CustomValidator.Services;
+using Umbraco.Community.CustomValidator.Tests.Validation;
 
-namespace Umbraco.Community.CustomValidator.Tests.Validation;
+namespace Umbraco.Community.CustomValidator.Tests.Services;
 
 [TestFixture]
 public class DocumentValidationServiceTests
