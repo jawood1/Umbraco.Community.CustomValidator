@@ -14,7 +14,7 @@ namespace Umbraco.Community.CustomValidator.Controllers;
 [ApiExplorerSettings(GroupName = "Custom Document Validation API")]
 public sealed class DocumentValidationController(
     IUmbracoContextAccessor umbracoContextAccessor,
-    CustomValidationService validationExecutor,
+    CustomValidationService validationService,
     ILogger<DocumentValidationController> logger)
     : ManagementApiControllerBase
 {
@@ -39,7 +39,7 @@ public sealed class DocumentValidationController(
                 );
             }
 
-            var response = await validationExecutor.ExecuteValidationAsync(content, culture);
+            var response = await validationService.ExecuteValidationAsync(content, culture);
 
             return Ok(response);
         }

@@ -15,7 +15,7 @@ namespace Umbraco.Community.CustomValidator.Notifications;
 public sealed class ContentValidationNotificationHandler(
     IUmbracoContextAccessor umbracoContextAccessor,
     CustomValidationCacheService cacheService,
-    CustomValidationService validationExecutor,
+    CustomValidationService validationService,
     IOptions<CustomValidatorOptions> options,
     ILogger<ContentValidationNotificationHandler> logger)
     :   INotificationAsyncHandler<ContentSavingNotification>,
@@ -111,7 +111,7 @@ public sealed class ContentValidationNotificationHandler(
             // Variant content - validate each culture
             foreach (var culture in cultures)
             {
-                var response = await validationExecutor.ExecuteValidationAsync(content, culture, cancellationToken);
+                var response = await validationService.ExecuteValidationAsync(content, culture, cancellationToken);
 
                 if (!HasValidationErrors(response))
                     continue;
@@ -123,7 +123,7 @@ public sealed class ContentValidationNotificationHandler(
         else
         {
             // Invariant content
-            var response = await validationExecutor.ExecuteValidationAsync(content, null, cancellationToken);
+            var response = await validationService.ExecuteValidationAsync(content, null, cancellationToken);
 
             if (!HasValidationErrors(response))
                 return (false, string.Empty);
