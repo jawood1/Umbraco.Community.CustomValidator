@@ -11,30 +11,32 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
     {
         var messages = new List<ValidationMessage>();
 
-        if (string.IsNullOrWhiteSpace(content.Title) || content.Title.Length <= 10)
+       if (!string.IsNullOrWhiteSpace(content.Title) && content.Title.Length < 10)
         {
             messages.Add(new ValidationMessage
             {
-                Message = "Title: The title must be longer than 10 characters.",
+                Message = $"Title: is too short ({content.Title.Length} characters) minimum length 10 characters.",
                 Severity = ValidationSeverity.Error
             });
         }
 
-        if (content.MainImage?.Content is not Image { AltText.Length: > 0 })
+        if (content.MainImage?.Content is Image mainImage && string.IsNullOrWhiteSpace(mainImage.AltText))
         {
             messages.Add(new ValidationMessage
             {
-                Message = "Main Image: has no alt text.",
+                Message = "Main Image: missing alt text for accessibility.",
                 Severity = ValidationSeverity.Warning
             });
         }
 
-        // Example info message
-        messages.Add(new ValidationMessage
+        if (string.IsNullOrWhiteSpace(content.MetaDescription))
         {
-            Message = "Cool here is some info...",
-            Severity = ValidationSeverity.Info
-        });
+            messages.Add(new ValidationMessage
+            {
+                Message = "Meta description is recommended for SEO.",
+                Severity = ValidationSeverity.Info
+            });
+        }
 
         return Task.FromResult<IEnumerable<ValidationMessage>>(messages);
     }

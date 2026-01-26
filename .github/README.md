@@ -19,10 +19,10 @@ This package is a validation framework for Umbraco backoffice that provides real
 ## Screenshots
 
 ### Validation Tab
-![Validation tab showing error, warning, and info messages in the Umbraco backoffice](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/single-lang-view.jpg)
+![Validation tab showing error, warning, and info messages in the Umbraco backoffice](../docs/single-lang-view.jpg)
 
 ### Multi-Culture Split View
-![Multi-culture validation results displayed in split-view mode](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/split-lang-view.jpg)
+![Multi-culture validation results displayed in split-view mode](../docs/split-lang-view.jpg)
 
 ## Installation
 
