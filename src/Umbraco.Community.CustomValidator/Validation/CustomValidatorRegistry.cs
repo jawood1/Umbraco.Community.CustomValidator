@@ -6,20 +6,20 @@ using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Interfaces;
 using Umbraco.Community.CustomValidator.Models;
 
-namespace Umbraco.Community.CustomValidator.Services;
+namespace Umbraco.Community.CustomValidator.Validation;
 
-public sealed class DocumentValidationService
+public sealed class CustomValidatorRegistry
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<DocumentValidationService> _logger;
+    private readonly ILogger<CustomValidatorRegistry> _logger;
     private readonly ConcurrentDictionary<Type, List<Type>> _validatorTypeCache = new();
 
     // Cache validator metadata (type + NameOfType)
     private Lazy<List<ValidatorMetadata>> _validatorMetadata;
 
-    public DocumentValidationService(
+    public CustomValidatorRegistry(
         IServiceProvider serviceProvider,
-        ILogger<DocumentValidationService> logger)
+        ILogger<CustomValidatorRegistry> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;

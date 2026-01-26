@@ -14,8 +14,8 @@ namespace Umbraco.Community.CustomValidator.Notifications;
 
 public sealed class ContentValidationNotificationHandler(
     IUmbracoContextAccessor umbracoContextAccessor,
-    ValidationCacheService cacheService,
-    ValidationExecutor validationExecutor,
+    CustomValidationCacheService cacheService,
+    CustomValidationService validationExecutor,
     IOptions<CustomValidatorOptions> options,
     ILogger<ContentValidationNotificationHandler> logger)
     :   INotificationAsyncHandler<ContentSavingNotification>,

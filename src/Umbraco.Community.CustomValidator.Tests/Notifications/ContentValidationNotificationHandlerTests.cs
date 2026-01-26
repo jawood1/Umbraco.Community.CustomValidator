@@ -23,8 +23,8 @@ namespace Umbraco.Community.CustomValidator.Tests.Notifications;
 public sealed class ContentValidationNotificationHandlerTests
 {
     private Mock<IUmbracoContextAccessor> _umbracoContextAccessorMock = null!;
-    private ValidationCacheService _cacheService = null!;
-    private ValidationExecutor _validationExecutor = null!;
+    private CustomValidationCacheService _cacheService = null!;
+    private CustomValidationService _validationExecutor = null!;
     private Mock<IOptions<CustomValidatorOptions>> _optionsMock = null!;
     private Mock<ILogger<ContentValidationNotificationHandler>> _loggerMock = null!;
     private ContentValidationNotificationHandler _sut = null!;
@@ -52,26 +52,26 @@ public sealed class ContentValidationNotificationHandlerTests
         _optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         _optionsMock.Setup(x => x.Value).Returns(_options);
 
-        var documentValidationService = new DocumentValidationService(
+        var documentValidationService = new CustomValidatorRegistry(
             _serviceProvider,
-            _serviceProvider.GetRequiredService<ILogger<DocumentValidationService>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        _cacheService = new ValidationCacheService(
+        _cacheService = new CustomValidationCacheService(
             hybridCache,
             _optionsMock.Object,
-            _serviceProvider.GetRequiredService<ILogger<ValidationCacheService>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         var variationContextMock = new Mock<IVariationContextAccessor>();
         var languageServiceMock = new Mock<ILanguageService>();
         languageServiceMock.Setup(x => x.GetDefaultIsoCodeAsync())
             .ReturnsAsync("en-GB");
 
-        _validationExecutor = new ValidationExecutor(
+        _validationExecutor = new CustomValidationService(
             documentValidationService,
             _cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
-            _serviceProvider.GetRequiredService<ILogger<ValidationExecutor>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidationService>>());
 
         _umbracoContextAccessorMock = new Mock<IUmbracoContextAccessor>();
         _loggerMock = new Mock<ILogger<ContentValidationNotificationHandler>>();
@@ -337,7 +337,7 @@ public sealed class ContentValidationNotificationHandlerTests
         return contentMock.Object;
     }
 
-    private ValidationExecutor CreateValidationExecutorWithErrorValidator()
+    private CustomValidationService CreateValidationExecutorWithErrorValidator()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -347,27 +347,27 @@ public sealed class ContentValidationNotificationHandlerTests
 
         var sp = services.BuildServiceProvider();
 
-        var validationService = new DocumentValidationService(
+        var validationService = new CustomValidatorRegistry(
             sp,
-            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        var cacheService = new ValidationCacheService(
+        var cacheService = new CustomValidationCacheService(
             sp.GetRequiredService<HybridCache>(),
             _optionsMock.Object,
-            sp.GetRequiredService<ILogger<ValidationCacheService>>());
+            sp.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         var variationContextMock = new Mock<IVariationContextAccessor>();
         var languageServiceMock = new Mock<ILanguageService>();
 
-        return new ValidationExecutor(
+        return new CustomValidationService(
             validationService,
             cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
-            sp.GetRequiredService<ILogger<ValidationExecutor>>());
+            sp.GetRequiredService<ILogger<CustomValidationService>>());
     }
 
-    private ValidationExecutor CreateValidationExecutorWithWarningValidator()
+    private CustomValidationService CreateValidationExecutorWithWarningValidator()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -377,27 +377,27 @@ public sealed class ContentValidationNotificationHandlerTests
 
         var sp = services.BuildServiceProvider();
 
-        var validationService = new DocumentValidationService(
+        var validationService = new CustomValidatorRegistry(
             sp,
-            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        var cacheService = new ValidationCacheService(
+        var cacheService = new CustomValidationCacheService(
             sp.GetRequiredService<HybridCache>(),
             _optionsMock.Object,
-            sp.GetRequiredService<ILogger<ValidationCacheService>>());
+            sp.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         var variationContextMock = new Mock<IVariationContextAccessor>();
         var languageServiceMock = new Mock<ILanguageService>();
 
-        return new ValidationExecutor(
+        return new CustomValidationService(
             validationService,
             cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
-            sp.GetRequiredService<ILogger<ValidationExecutor>>());
+            sp.GetRequiredService<ILogger<CustomValidationService>>());
     }
 
-    private ValidationExecutor CreateValidationExecutorWithConditionalError(Guid errorDocId, Action onDoc2Validate)
+    private CustomValidationService CreateValidationExecutorWithConditionalError(Guid errorDocId, Action onDoc2Validate)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -409,24 +409,24 @@ public sealed class ContentValidationNotificationHandlerTests
 
         var sp = services.BuildServiceProvider();
 
-        var validationService = new DocumentValidationService(
+        var validationService = new CustomValidatorRegistry(
             sp,
-            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        var cacheService = new ValidationCacheService(
+        var cacheService = new CustomValidationCacheService(
             sp.GetRequiredService<HybridCache>(),
             _optionsMock.Object,
-            sp.GetRequiredService<ILogger<ValidationCacheService>>());
+            sp.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         var variationContextMock = new Mock<IVariationContextAccessor>();
         var languageServiceMock = new Mock<ILanguageService>();
 
-        return new ValidationExecutor(
+        return new CustomValidationService(
             validationService,
             cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
-            sp.GetRequiredService<ILogger<ValidationExecutor>>());
+            sp.GetRequiredService<ILogger<CustomValidationService>>());
     }
 
     private static ValidationResponse CreateValidationResponse(Guid documentId, params ValidationMessage[] messages)

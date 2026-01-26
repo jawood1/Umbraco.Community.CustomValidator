@@ -10,11 +10,11 @@ using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Controllers;
 
-[VersionedApiBackOfficeRoute("validation")]
-[ApiExplorerSettings(GroupName = "Document Validation API")]
+[VersionedApiBackOfficeRoute("custom-validation")]
+[ApiExplorerSettings(GroupName = "Custom Document Validation API")]
 public sealed class DocumentValidationController(
     IUmbracoContextAccessor umbracoContextAccessor,
-    ValidationExecutor validationExecutor,
+    CustomValidationService validationExecutor,
     ILogger<DocumentValidationController> logger)
     : ManagementApiControllerBase
 {

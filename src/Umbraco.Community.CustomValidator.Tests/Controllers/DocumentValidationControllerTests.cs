@@ -22,7 +22,7 @@ namespace Umbraco.Community.CustomValidator.Tests.Controllers;
 [TestFixture]
 public class DocumentValidationControllerTests
 {
-    private ValidationExecutor _validationExecutor = null!;
+    private CustomValidationService _validationExecutor = null!;
     private Mock<IUmbracoContextAccessor> _umbracoContextAccessorMock = null!;
     private Mock<ILogger<DocumentValidationController>> _loggerMock = null!;
     private DocumentValidationController _sut = null!;
@@ -47,26 +47,26 @@ public class DocumentValidationControllerTests
         _serviceProvider = services.BuildServiceProvider();
 
         var hybridCache = _serviceProvider.GetRequiredService<HybridCache>();
-        var documentValidationService = new DocumentValidationService(
+        var documentValidationService = new CustomValidatorRegistry(
             _serviceProvider,
-            _serviceProvider.GetRequiredService<ILogger<DocumentValidationService>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        var cacheService = new ValidationCacheService(
+        var cacheService = new CustomValidationCacheService(
             hybridCache,
             optionsMock.Object,
-            _serviceProvider.GetRequiredService<ILogger<ValidationCacheService>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         var variationContextAccessorMock = new Mock<IVariationContextAccessor>();
         var languageServiceMock = new Mock<ILanguageService>();
         languageServiceMock.Setup(x => x.GetDefaultIsoCodeAsync())
             .ReturnsAsync("en-GB");
 
-        _validationExecutor = new ValidationExecutor(
+        _validationExecutor = new CustomValidationService(
             documentValidationService,
             cacheService,
             variationContextAccessorMock.Object,
             languageServiceMock.Object,
-            _serviceProvider.GetRequiredService<ILogger<ValidationExecutor>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidationService>>());
 
         _umbracoContextAccessorMock = new Mock<IUmbracoContextAccessor>();
         _loggerMock = new Mock<ILogger<DocumentValidationController>>();
@@ -297,7 +297,7 @@ public class DocumentValidationControllerTests
         return contentMock.Object;
     }
 
-    private ValidationExecutor CreateValidationExecutorWithValidator()
+    private CustomValidationService CreateValidationExecutorWithValidator()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -311,27 +311,27 @@ public class DocumentValidationControllerTests
         var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         optionsMock.Setup(x => x.Value).Returns(options);
 
-        var validationService = new DocumentValidationService(
+        var validationService = new CustomValidatorRegistry(
             sp,
-            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        var cacheService = new ValidationCacheService(
+        var cacheService = new CustomValidationCacheService(
             sp.GetRequiredService<HybridCache>(),
             optionsMock.Object,
-            sp.GetRequiredService<ILogger<ValidationCacheService>>());
+            sp.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         var variationContextMock = new Mock<IVariationContextAccessor>();
         var languageServiceMock = new Mock<ILanguageService>();
 
-        return new ValidationExecutor(
+        return new CustomValidationService(
             validationService,
             cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
-            sp.GetRequiredService<ILogger<ValidationExecutor>>());
+            sp.GetRequiredService<ILogger<CustomValidationService>>());
     }
 
-    private ValidationExecutor CreateValidationExecutorWithTrackingValidator(Action onValidate)
+    private CustomValidationService CreateValidationExecutorWithTrackingValidator(Action onValidate)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -347,24 +347,24 @@ public class DocumentValidationControllerTests
         var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         optionsMock.Setup(x => x.Value).Returns(options);
 
-        var validationService = new DocumentValidationService(
+        var validationService = new CustomValidatorRegistry(
             sp,
-            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        var cacheService = new ValidationCacheService(
+        var cacheService = new CustomValidationCacheService(
             sp.GetRequiredService<HybridCache>(),
             optionsMock.Object,
-            sp.GetRequiredService<ILogger<ValidationCacheService>>());
+            sp.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         var variationContextMock = new Mock<IVariationContextAccessor>();
         var languageServiceMock = new Mock<ILanguageService>();
 
-        return new ValidationExecutor(
+        return new CustomValidationService(
             validationService,
             cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
-            sp.GetRequiredService<ILogger<ValidationExecutor>>());
+            sp.GetRequiredService<ILogger<CustomValidationService>>());
     }
 
     #endregion

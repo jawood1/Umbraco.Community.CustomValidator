@@ -6,23 +6,24 @@ using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Interfaces;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Services;
-using Umbraco.Community.CustomValidator.Tests.Validation;
 
-namespace Umbraco.Community.CustomValidator.Tests.Services;
+namespace Umbraco.Community.CustomValidator.Tests.Validation;
+
+using Umbraco.Community.CustomValidator.Validation;
 
 [TestFixture]
-public class DocumentValidationServiceTests
+public class CustomValidatorRegistryTests
 {
     private ServiceCollection _services = null!;
     private ServiceProvider _serviceProvider = null!;
-    private Mock<ILogger<DocumentValidationService>> _loggerMock = null!;
-    private DocumentValidationService _sut = null!;
+    private Mock<ILogger<CustomValidatorRegistry>> _loggerMock = null!;
+    private CustomValidatorRegistry _sut = null!;
 
     [SetUp]
     public void Setup()
     {
         _services = new ServiceCollection();
-        _loggerMock = new Mock<ILogger<DocumentValidationService>>();
+        _loggerMock = new Mock<ILogger<CustomValidatorRegistry>>();
 
         // Register logger
         _services.AddSingleton(_loggerMock.Object);
@@ -41,7 +42,7 @@ public class DocumentValidationServiceTests
     {
         // Arrange
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -67,7 +68,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validator);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -105,7 +106,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validator2);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -142,7 +143,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -167,7 +168,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -193,7 +194,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validator);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
 
         var content = CreateMockContent<IHomePageWithBase>();
 
@@ -218,7 +219,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act - Call twice
@@ -245,7 +246,7 @@ public class DocumentValidationServiceTests
     {
         // Arrange
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -266,7 +267,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -287,7 +288,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -308,7 +309,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContentWithInterface<IHomePageWithBase, IBasePage>();
 
         // Act
@@ -333,7 +334,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Prime the cache
@@ -377,14 +378,14 @@ public class DocumentValidationServiceTests
         // Act - Create two scopes
         using (var scope1 = _serviceProvider.CreateScope())
         {
-            var sut1 = new DocumentValidationService(scope1.ServiceProvider, _loggerMock.Object);
+            var sut1 = new CustomValidatorRegistry(scope1.ServiceProvider, _loggerMock.Object);
             var content = CreateMockContent<IHomePage>();
             await sut1.ValidateAsync(content);
         }
 
         using (var scope2 = _serviceProvider.CreateScope())
         {
-            var sut2 = new DocumentValidationService(scope2.ServiceProvider, _loggerMock.Object);
+            var sut2 = new CustomValidatorRegistry(scope2.ServiceProvider, _loggerMock.Object);
             var content = CreateMockContent<IHomePage>();
             await sut2.ValidateAsync(content);
         }
@@ -403,7 +404,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<TestValidator>());
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -434,7 +435,7 @@ public class DocumentValidationServiceTests
         _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
 
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new DocumentValidationService(_serviceProvider, _loggerMock.Object);
+        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
 
         // Act - Concurrent validations
         var tasks = Enumerable.Range(0, 10).Select(_ =>

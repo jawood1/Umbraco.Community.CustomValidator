@@ -10,12 +10,12 @@ namespace Umbraco.Community.CustomValidator.Validation;
 /// <summary>
 /// Executes document validation with caching, culture resolution, and variation context handling.
 /// </summary>
-public sealed class ValidationExecutor(
-    DocumentValidationService documentValidationService,
-    ValidationCacheService validationCacheService,
+public sealed class CustomValidationService(
+    CustomValidatorRegistry documentValidationService,
+    CustomValidationCacheService validationCacheService,
     IVariationContextAccessor variationContextAccessor,
     ILanguageService languageService,
-    ILogger<ValidationExecutor> logger)
+    ILogger<CustomValidationService> logger)
 {
     /// <summary>
     /// Executes validation for a document with caching support.

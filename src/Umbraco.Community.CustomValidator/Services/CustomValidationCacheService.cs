@@ -8,10 +8,10 @@ namespace Umbraco.Community.CustomValidator.Services;
 /// <summary>
 /// Handles caching of document validation results using HybridCache with tag-based invalidation.
 /// </summary>
-public sealed class ValidationCacheService(
+public sealed class CustomValidationCacheService(
     HybridCache cache,
     IOptions<CustomValidatorOptions> options,
-    ILogger<ValidationCacheService> logger)
+    ILogger<CustomValidationCacheService> logger)
 {
     private const string CacheKeyPrefix = "customValidation";
 

@@ -4,8 +4,8 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Community.CustomValidator.Notifications;
 using Umbraco.Community.CustomValidator.Services;
-using Umbraco.Community.CustomValidator.Validation;
 using System.Diagnostics.CodeAnalysis;
+using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Composer;
 
@@ -17,9 +17,9 @@ internal sealed class ValidationComposer : IComposer
         builder.Services.Configure<CustomValidatorOptions>(builder.Config.GetSection(Constants.OptionsName));
 
         //services
-        builder.Services.AddTransient<ValidationCacheService>();
-        builder.Services.AddSingleton<DocumentValidationService>();
-        builder.Services.AddSingleton<ValidationExecutor>();
+        builder.Services.AddTransient<CustomValidationCacheService>();
+        builder.Services.AddSingleton<CustomValidatorRegistry>();
+        builder.Services.AddSingleton<CustomValidationService>();
 
         //notifications
         builder.AddNotificationAsyncHandler<ContentSavingNotification, ContentValidationNotificationHandler>();

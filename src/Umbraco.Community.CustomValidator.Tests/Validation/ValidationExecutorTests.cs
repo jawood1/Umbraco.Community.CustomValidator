@@ -16,12 +16,12 @@ namespace Umbraco.Community.CustomValidator.Tests.Validation;
 [TestFixture]
 public sealed class ValidationExecutorTests
 {
-    private DocumentValidationService _documentValidationService = null!;
-    private ValidationCacheService _cacheService = null!;
+    private CustomValidatorRegistry _documentValidationService = null!;
+    private CustomValidationCacheService _cacheService = null!;
     private Mock<IVariationContextAccessor> _variationContextAccessorMock = null!;
     private Mock<ILanguageService> _languageServiceMock = null!;
-    private Mock<ILogger<ValidationExecutor>> _loggerMock = null!;
-    private ValidationExecutor _sut = null!;
+    private Mock<ILogger<CustomValidationService>> _loggerMock = null!;
+    private CustomValidationService _sut = null!;
 
     private ServiceProvider _serviceProvider = null!;
     private HybridCache _hybridCache = null!;
@@ -44,20 +44,20 @@ public sealed class ValidationExecutorTests
         var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         optionsMock.Setup(x => x.Value).Returns(options);
 
-        _documentValidationService = new DocumentValidationService(
+        _documentValidationService = new CustomValidatorRegistry(
             _serviceProvider,
-            _serviceProvider.GetRequiredService<ILogger<DocumentValidationService>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        _cacheService = new ValidationCacheService(
+        _cacheService = new CustomValidationCacheService(
             _hybridCache,
             optionsMock.Object,
-            _serviceProvider.GetRequiredService<ILogger<ValidationCacheService>>());
+            _serviceProvider.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         _variationContextAccessorMock = new Mock<IVariationContextAccessor>();
         _languageServiceMock = new Mock<ILanguageService>();
-        _loggerMock = new Mock<ILogger<ValidationExecutor>>();
+        _loggerMock = new Mock<ILogger<CustomValidationService>>();
 
-        _sut = new ValidationExecutor(
+        _sut = new CustomValidationService(
             _documentValidationService,
             _cacheService,
             _variationContextAccessorMock.Object,
@@ -98,7 +98,7 @@ public sealed class ValidationExecutorTests
         var content = CreateMockContent();
         var validationService = CreateValidationServiceWithValidator();
 
-        var sut = new ValidationExecutor(
+        var sut = new CustomValidationService(
             validationService,
             _cacheService,
             _variationContextAccessorMock.Object,
@@ -126,7 +126,7 @@ public sealed class ValidationExecutorTests
         var culture = "en-US";
         var validationService = CreateValidationServiceWithValidator();
 
-        var sut = new ValidationExecutor(
+        var sut = new CustomValidationService(
             validationService,
             _cacheService,
             _variationContextAccessorMock.Object,
@@ -149,7 +149,7 @@ public sealed class ValidationExecutorTests
         var content = CreateMockContent();
         var validationService = CreateValidationServiceWithValidator();
 
-        var sut = new ValidationExecutor(
+        var sut = new CustomValidationService(
             validationService,
             _cacheService,
             _variationContextAccessorMock.Object,
@@ -184,11 +184,11 @@ public sealed class ValidationExecutorTests
         services.AddSingleton<IDocumentValidator>(sp => validator);
 
         var sp = services.BuildServiceProvider();
-        var validationService = new DocumentValidationService(
+        var validationService = new CustomValidatorRegistry(
             sp,
-            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
-        var sut = new ValidationExecutor(
+        var sut = new CustomValidationService(
             validationService,
             _cacheService,
             _variationContextAccessorMock.Object,
@@ -227,7 +227,7 @@ public sealed class ValidationExecutorTests
         return contentMock.Object;
     }
 
-    private DocumentValidationService CreateValidationServiceWithValidator()
+    private CustomValidatorRegistry CreateValidationServiceWithValidator()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -236,9 +236,9 @@ public sealed class ValidationExecutorTests
 
         var sp = services.BuildServiceProvider();
 
-        return new DocumentValidationService(
+        return new CustomValidatorRegistry(
             sp,
-            sp.GetRequiredService<ILogger<DocumentValidationService>>());
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
     }
 
     #endregion

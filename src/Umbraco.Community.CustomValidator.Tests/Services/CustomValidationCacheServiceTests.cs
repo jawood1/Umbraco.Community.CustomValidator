@@ -10,12 +10,12 @@ using Umbraco.Community.CustomValidator.Services;
 namespace Umbraco.Community.CustomValidator.Tests.Services;
 
 [TestFixture]
-public class ValidationCacheServiceTests
+public class CustomValidationCacheServiceTests
 {
     private HybridCache _hybridCache = null!;
-    private Mock<ILogger<ValidationCacheService>> _loggerMock = null!;
+    private Mock<ILogger<CustomValidationCacheService>> _loggerMock = null!;
     private Mock<IOptions<CustomValidatorOptions>> _optionsMock = null!;
-    private ValidationCacheService _sut = null!;
+    private CustomValidationCacheService _sut = null!;
     private CustomValidatorOptions _options = null!;
 
     [SetUp]
@@ -36,8 +36,8 @@ public class ValidationCacheServiceTests
         var serviceProvider = services.BuildServiceProvider();
         _hybridCache = serviceProvider.GetRequiredService<HybridCache>();
 
-        _loggerMock = new Mock<ILogger<ValidationCacheService>>();
-        _sut = new ValidationCacheService(_hybridCache, _optionsMock.Object, _loggerMock.Object);
+        _loggerMock = new Mock<ILogger<CustomValidationCacheService>>();
+        _sut = new CustomValidationCacheService(_hybridCache, _optionsMock.Object, _loggerMock.Object);
     }
 
     #region GetOrSetAsync Tests

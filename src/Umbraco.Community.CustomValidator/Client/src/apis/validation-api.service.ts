@@ -9,7 +9,7 @@ export class ValidationApiService extends UmbControllerBase {
     
     constructor(host: UmbControllerHost) {
         super(host);
-        this.baseUrl = `${window.location.origin}/umbraco/management/api/v1/validation`;
+        this.baseUrl = `${window.location.origin}/umbraco/management/api/v1/custom-validation`;
     }
     
     async validateDocument(
