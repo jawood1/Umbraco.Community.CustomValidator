@@ -205,7 +205,6 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
 
             const performValidation = async () => {
                 try {
-                    // Save before validation unless explicitly skipped
                     if (!options.skipSave && this.#contentWorkspace?.requestSubmit) {
                         await this.#contentWorkspace.requestSubmit();
                         await this.#delay(SAVE_DELAY_MS);
@@ -215,11 +214,20 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
                     this._validationResult = result;
 
                 } catch (error) {
-                    console.debug('Validation skipped:', error);
+                    console.error('Validation failed:', error);
+                    
+                    // Show error state in UI instead of just logging
+                    this._validationResult = {
+                        contentId: this._documentId!,
+                        hasValidator: false,
+                        messages: [{
+                            message: 'Validation failed. Please check the logs.',
+                            severity: 'Error' as any
+                        }]
+                    };
                 }
             };
 
-            // Use delay for initial validation to ensure workspace is fully loaded
             if (options.useDelay) {
                 await this.#delay(INITIAL_VALIDATION_DELAY_MS);
             }

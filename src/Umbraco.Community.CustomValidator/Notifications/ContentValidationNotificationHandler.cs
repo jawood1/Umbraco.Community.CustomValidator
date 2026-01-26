@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Text.RegularExpressions;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Notifications;
@@ -92,7 +91,8 @@ public sealed class ContentValidationNotificationHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Unexpected error during publish validation");
+            logger.LogError(ex, "Custom Validator: Unexpected error during publish validation");
+
             notification.CancelOperation(new EventMessage(
                 "Custom Validation Failed",
                 "Cannot publish: an unexpected error occurred. Please check the logs.",

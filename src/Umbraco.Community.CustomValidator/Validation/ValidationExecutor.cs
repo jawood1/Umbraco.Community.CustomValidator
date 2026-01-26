@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
-using Umbraco.Cms.Core.Web;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Services;
 using Umbraco.Extensions;
@@ -14,7 +13,6 @@ namespace Umbraco.Community.CustomValidator.Validation;
 public sealed class ValidationExecutor(
     DocumentValidationService documentValidationService,
     ValidationCacheService validationCacheService,
-    IUmbracoContextAccessor umbracoContextAccessor,
     IVariationContextAccessor variationContextAccessor,
     ILanguageService languageService,
     ILogger<ValidationExecutor> logger)
