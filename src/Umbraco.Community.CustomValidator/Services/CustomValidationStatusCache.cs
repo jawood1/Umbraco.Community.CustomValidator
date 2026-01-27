@@ -5,10 +5,6 @@ using Umbraco.Community.CustomValidator.Enums;
 
 namespace Umbraco.Community.CustomValidator.Services;
 
-/// <summary>
-/// Lightweight cache for tracking document validation status.
-/// Uses IMemoryCache for reliable null-value handling.
-/// </summary>
 public sealed class CustomValidationStatusCache(
     IMemoryCache cache,
     ILogger<CustomValidationStatusCache> logger)
@@ -68,7 +64,6 @@ public sealed class CustomValidationStatusCache(
 
     /// <summary>
     /// Clears validation status for a document.
-    /// Called when content is saved to invalidate status.
     /// </summary>
     public void ClearStatus(Guid documentId)
     {
