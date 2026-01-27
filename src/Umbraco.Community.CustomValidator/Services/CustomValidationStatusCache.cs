@@ -21,8 +21,6 @@ public sealed class CustomValidationStatusCache(
     /// <summary>
     /// Gets validation status for a single document.
     /// </summary>
-    /// <param name="documentId">The document identifier.</param>
-    /// <returns>Validation status (Unknown if not cached).</returns>
     public ValidationStatus GetStatus(Guid documentId)
     {
         var cacheKey = GetCacheKey(documentId);
@@ -40,8 +38,6 @@ public sealed class CustomValidationStatusCache(
     /// <summary>
     /// Sets validation status for a document.
     /// </summary>
-    /// <param name="documentId">The document identifier.</param>
-    /// <param name="status">The validation status.</param>
     public void SetStatus(Guid documentId, ValidationStatus status)
     {
         var cacheKey = GetCacheKey(documentId);
@@ -65,8 +61,6 @@ public sealed class CustomValidationStatusCache(
     /// <summary>
     /// Sets status based on whether document has errors.
     /// </summary>
-    /// <param name="documentId">The document identifier.</param>
-    /// <param name="hasErrors">True if document has validation errors.</param>
     public void SetStatus(Guid documentId, bool hasErrors)
     {
         SetStatus(documentId, hasErrors ? ValidationStatus.HasErrors : ValidationStatus.Valid);
@@ -76,7 +70,6 @@ public sealed class CustomValidationStatusCache(
     /// Clears validation status for a document.
     /// Called when content is saved to invalidate status.
     /// </summary>
-    /// <param name="documentId">The document identifier.</param>
     public void ClearStatus(Guid documentId)
     {
         var cacheKey = GetCacheKey(documentId);
