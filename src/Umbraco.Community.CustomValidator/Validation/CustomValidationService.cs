@@ -1,15 +1,14 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Community.CustomValidator.Enums;
+using Umbraco.Community.CustomValidator.Extensions;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Services;
 using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Validation;
-
-using Microsoft.Extensions.Options;
-using Umbraco.Community.CustomValidator.Enums;
-using Umbraco.Community.CustomValidator.Extensions;
 
 /// <summary>
 /// Executes document validation with caching, culture resolution, and variation context handling.
