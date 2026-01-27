@@ -17,7 +17,7 @@ internal sealed class ValidationComposer : IComposer
         builder.Services.Configure<CustomValidatorOptions>(builder.Config.GetSection(Constants.OptionsName));
 
         //services
-        builder.Services.AddTransient<CustomValidationCacheService>();
+        builder.Services.AddSingleton<CustomValidationCacheService>();
         builder.Services.AddSingleton<CustomValidatorRegistry>();
         builder.Services.AddSingleton<CustomValidationService>();
 
