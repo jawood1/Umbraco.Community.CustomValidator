@@ -35,7 +35,6 @@ public sealed class CustomValidationService(
         string? culture,
         CancellationToken cancellationToken = default)
     {
-
         if (!validatorRegistry.HasValidator(content))
         {
             logger.LogDebug("No validator configured for document {DocumentId}, content type: {ContentType}",
@@ -51,7 +50,7 @@ public sealed class CustomValidationService(
             };
         }
 
-        var response = await validationCache.GetOrSetAsync(
+        return await validationCache.GetOrSetAsync(
             content.Key, culture,
             async _ =>
             {
@@ -75,10 +74,7 @@ public sealed class CustomValidationService(
                 statusCache.SetStatus(content.Key, hasErrors);
 
                 return validationResponse;
-
             }, cancellationToken);
-
-        return response;
     }
 
     private async Task<string?> GetCurrentCultureAsync(string? culture, IPublishedContent content)
