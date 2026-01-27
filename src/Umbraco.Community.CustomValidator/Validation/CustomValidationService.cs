@@ -11,7 +11,7 @@ namespace Umbraco.Community.CustomValidator.Validation;
 /// Executes document validation with caching, culture resolution, and variation context handling.
 /// </summary>
 public sealed class CustomValidationService(
-    CustomValidatorRegistry documentValidationService,
+    CustomValidatorRegistry validatorRegistry,
     CustomValidationCacheService validationCacheService,
     IVariationContextAccessor variationContextAccessor,
     ILanguageService languageService,
@@ -30,7 +30,7 @@ public sealed class CustomValidationService(
         CancellationToken cancellationToken = default)
     {
 
-        if (!documentValidationService.HasValidator(content))
+        if (!validatorRegistry.HasValidator(content))
         {
             logger.LogDebug("No validator configured for document {DocumentId}, content type: {ContentType}",
                 content.Key, content.ContentType.Alias);
@@ -55,7 +55,7 @@ public sealed class CustomValidationService(
                     logger.LogDebug("Set variation context to culture: {Culture}", currentCulture);
                 }
 
-                var validationMessages = await documentValidationService.ValidateAsync(content);
+                var validationMessages = await validatorRegistry.ValidateAsync(content);
 
                 return new ValidationResponse
                 {

@@ -16,7 +16,7 @@ namespace Umbraco.Community.CustomValidator.Tests.Validation;
 [TestFixture]
 public sealed class CustomValidationServiceTests
 {
-    private CustomValidatorRegistry _documentValidationService = null!;
+    private CustomValidatorRegistry _validatorRegistry = null!;
     private CustomValidationCacheService _cacheService = null!;
     private Mock<IVariationContextAccessor> _variationContextAccessorMock = null!;
     private Mock<ILanguageService> _languageServiceMock = null!;
@@ -44,7 +44,7 @@ public sealed class CustomValidationServiceTests
         var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         optionsMock.Setup(x => x.Value).Returns(options);
 
-        _documentValidationService = new CustomValidatorRegistry(
+        _validatorRegistry = new CustomValidatorRegistry(
             _serviceProvider,
             _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
@@ -58,7 +58,7 @@ public sealed class CustomValidationServiceTests
         _loggerMock = new Mock<ILogger<CustomValidationService>>();
 
         _sut = new CustomValidationService(
-            _documentValidationService,
+            _validatorRegistry,
             _cacheService,
             _variationContextAccessorMock.Object,
             _languageServiceMock.Object,
