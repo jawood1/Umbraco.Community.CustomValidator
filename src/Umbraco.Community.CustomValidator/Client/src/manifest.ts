@@ -43,7 +43,7 @@ export const manifests = [
         weight: 1000,
         meta: {
             iconName: "icon-application-error",
-            label: "Validation Error",
+            label: "Validation Error(s)",
             iconColorAlias: "red",
         }
     }
