@@ -40,10 +40,10 @@ export const manifests = [
         name: "Has Validation Error Entity Sign",
         forEntityTypes: [UMB_DOCUMENT_ENTITY_TYPE],
         forEntityFlags: ["CustomValidator.ValidationErrorsFlag"], 
-        weight: 0,
+        weight: 1000,
         meta: {
-            iconName: "icon-error", // Built-in or custom icon name
-            label: "Validation Error", // Visible/accessible label
+            iconName: "icon-application-error",
+            label: "Validation Error",
             iconColorAlias: "red",
         }
     }

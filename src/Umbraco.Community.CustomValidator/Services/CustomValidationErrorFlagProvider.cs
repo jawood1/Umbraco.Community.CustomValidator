@@ -10,7 +10,6 @@ using Umbraco.Community.CustomValidator.Enums;
 
 /// <summary>
 /// Provides flags for documents that have validation errors.
-/// Retrieves validation status for all items in a single batch operation for optimal performance.
 /// </summary>
 public sealed class CustomValidationErrorFlagProvider(
     CustomValidationStatusCache statusCache,
@@ -35,7 +34,6 @@ public sealed class CustomValidationErrorFlagProvider(
             return Task.CompletedTask;
         }
 
-        // Extract all document GUIDs from items in one go
         var documentKeys = itemsList
             .Select(item => item.Id)
             .Where(id => id != Guid.Empty)
@@ -53,21 +51,6 @@ public sealed class CustomValidationErrorFlagProvider(
         foreach (var item in itemsList.Where(item => validationStatuses.Contains(item.Id)))
         {
             item.AddFlag(FlagAlias);
-
-            switch (item)
-            {
-                case DocumentTreeItemResponseModel treeItem:
-                    AddFlagToTreeItem(treeItem);
-                    break;
-
-                case DocumentCollectionResponseModel collectionItem:
-                    AddFlagToCollectionItem(collectionItem);
-                    break;
-
-                case DocumentItemResponseModel documentItem:
-                    AddFlagToDocumentItem(documentItem);
-                    break;
-            }
         }
 
         return Task.CompletedTask;
@@ -75,37 +58,4 @@ public sealed class CustomValidationErrorFlagProvider(
 
     private List<Guid> GetDocsWithErrors(Guid[] documentIds) => 
         documentIds.Where(id => statusCache.GetStatus(id) is ValidationStatus.HasErrors).ToList();
-
-    /// <summary>
-    /// Adds validation error flag to a tree item.
-    /// </summary>
-    private void AddFlagToTreeItem(DocumentTreeItemResponseModel item)
-    {
-        foreach (var variant in item.Variants)
-        {
-            variant.AddFlag(FlagAlias);
-        }
-    }
-
-    /// <summary>
-    /// Adds validation error flag to a collection item.
-    /// </summary>
-    private void AddFlagToCollectionItem(DocumentCollectionResponseModel item)
-    {
-        foreach (var variant in item.Variants)
-        {
-            variant.AddFlag(FlagAlias);
-        }
-    }
-
-    /// <summary>
-    /// Adds validation error flag to a document item.
-    /// </summary>
-    private void AddFlagToDocumentItem(DocumentItemResponseModel item)
-    {
-        foreach (var variant in item.Variants)
-        {
-            variant.AddFlag(FlagAlias);
-        }
-    }
 }
