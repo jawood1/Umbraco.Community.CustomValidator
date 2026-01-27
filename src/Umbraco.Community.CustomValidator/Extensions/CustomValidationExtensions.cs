@@ -10,12 +10,12 @@ public static class CustomValidationExtensions
         public bool HasValidationErrors(bool treatWarningsAsErrors)
         {
             return response is { HasValidator: true, Messages: not null } &&
-                   response.Messages.Any(m => IsError(m.Severity));
+                   response.Messages.Any(m => IsError(m.Severity, treatWarningsAsErrors));
         }
 
         public int CountErrors(bool treatWarningsAsErrors)
         {
-            return response.Messages?.Count(m => IsError(m.Severity)) ?? 0;
+            return response.Messages?.Count(m => IsError(m.Severity, treatWarningsAsErrors)) ?? 0;
         }
     }
 
