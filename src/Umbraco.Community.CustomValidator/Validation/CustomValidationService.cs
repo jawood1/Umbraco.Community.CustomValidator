@@ -7,12 +7,18 @@ using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
+using Microsoft.Extensions.Options;
+using Umbraco.Community.CustomValidator.Enums;
+using Umbraco.Community.CustomValidator.Extensions;
+
 /// <summary>
 /// Executes document validation with caching, culture resolution, and variation context handling.
 /// </summary>
 public sealed class CustomValidationService(
     CustomValidatorRegistry validatorRegistry,
-    CustomValidationCacheService validationCacheService,
+    CustomValidationCacheService validationCache,
+    CustomValidationStatusCache statusCache,
+    IOptions<CustomValidatorOptions> options,
     IVariationContextAccessor variationContextAccessor,
     ILanguageService languageService,
     ILogger<CustomValidationService> logger)
@@ -35,6 +41,8 @@ public sealed class CustomValidationService(
             logger.LogDebug("No validator configured for document {DocumentId}, content type: {ContentType}",
                 content.Key, content.ContentType.Alias);
 
+            statusCache.SetStatus(content.Key, ValidationStatus.Unknown);
+
             return new ValidationResponse
             {
                 ContentId = content.Key,
@@ -43,7 +51,7 @@ public sealed class CustomValidationService(
             };
         }
 
-        return await validationCacheService.GetOrSetAsync(
+        var response = await validationCache.GetOrSetAsync(
             content.Key, culture,
             async _ =>
             {
@@ -56,15 +64,21 @@ public sealed class CustomValidationService(
                 }
 
                 var validationMessages = await validatorRegistry.ValidateAsync(content);
-
-                return new ValidationResponse
+                var validationResponse = new ValidationResponse
                 {
                     ContentId = content.Key,
                     HasValidator = true,
                     Messages = validationMessages
                 };
 
+                var hasErrors = validationResponse.HasValidationErrors(options.Value.TreatWarningsAsErrors);
+                statusCache.SetStatus(content.Key, hasErrors);
+
+                return validationResponse;
+
             }, cancellationToken);
+
+        return response;
     }
 
     private async Task<string?> GetCurrentCultureAsync(string? culture, IPublishedContent content)
