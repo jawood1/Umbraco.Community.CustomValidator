@@ -1,16 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
-using Umbraco.Cms.Api.Management.Services.Flags;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Community.CustomValidator.Notifications;
 using Umbraco.Community.CustomValidator.Services;
 using Umbraco.Community.CustomValidator.Validation;
+using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Composer;
-
-using Umbraco.Extensions;
 
 [ExcludeFromCodeCoverage]
 internal sealed class ValidationComposer : IComposer
