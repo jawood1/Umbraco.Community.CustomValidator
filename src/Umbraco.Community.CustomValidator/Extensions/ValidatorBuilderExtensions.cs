@@ -122,7 +122,7 @@ public static class ValidatorBuilderExtensions
             services.AddSingleton(new ValidatorMetadata
             {
                 ValidatorType = typeof(TValidator),
-                NameOfType = typeof(TContent).Name
+                ContentType = typeof(TContent)
             });
         }
     }
