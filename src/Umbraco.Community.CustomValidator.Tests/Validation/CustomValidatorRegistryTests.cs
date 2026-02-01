@@ -1,18 +1,17 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
+using NUnit.Framework;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Interfaces;
 using Umbraco.Community.CustomValidator.Models;
-using Umbraco.Community.CustomValidator.Services;
+using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Validation;
 
-using Umbraco.Community.CustomValidator.Validation;
-
 [TestFixture]
-public class CustomValidatorRegistryTests
+public sealed class CustomValidatorRegistryTests
 {
     private ServiceCollection _services = null!;
     private ServiceProvider _serviceProvider = null!;
@@ -24,9 +23,6 @@ public class CustomValidatorRegistryTests
     {
         _services = new ServiceCollection();
         _loggerMock = new Mock<ILogger<CustomValidatorRegistry>>();
-
-        // Register logger
-        _services.AddSingleton(_loggerMock.Object);
     }
 
     [TearDown]
@@ -35,14 +31,35 @@ public class CustomValidatorRegistryTests
         _serviceProvider?.Dispose();
     }
 
-    #region ValidateAsync Tests
+    #region Constructor Tests
+
+    [Test]
+    public void Constructor_WithValidDependencies_CreatesInstance()
+    {
+        // Arrange
+        _serviceProvider = _services.BuildServiceProvider();
+        var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        // Act
+        var registry = new CustomValidatorRegistry(
+            scopeFactory,
+            new List<ValidatorMetadata>(),
+            _loggerMock.Object);
+
+        // Assert
+        Assert.That(registry, Is.Not.Null);
+    }
+
+    #endregion
+
+    #region ValidateAsync Tests - No Validators
 
     [Test]
     public async Task ValidateAsync_WithNoValidators_ReturnsEmptyList()
     {
         // Arrange
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(new List<ValidatorMetadata>());
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -53,22 +70,44 @@ public class CustomValidatorRegistryTests
     }
 
     [Test]
-    public async Task ValidateAsync_WithMatchingValidator_ExecutesValidation()
+    public async Task ValidateAsync_WithNoMatchingValidator_ReturnsEmptyList()
     {
-        // Arrange - Use real validator instead of mock
-        var validator = new TestHomePageValidator
+        // Arrange
+        var metadata = new List<ValidatorMetadata>
         {
-            MessagesToReturn = new List<ValidationMessage>
-            {
-                new() { Message = "Error 1", Severity = ValidationSeverity.Error }
-            }
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IArticle" }
         };
 
-        _services.AddSingleton(validator);
-        _services.AddSingleton<IDocumentValidator>(sp => validator);
-
+        RegisterValidator<TestValidator1>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
+        var content = CreateMockContent<IHomePage>(); // Different type
+
+        // Act
+        var result = await _sut.ValidateAsync(content);
+
+        // Assert
+        Assert.That(result, Is.Empty);
+    }
+
+    #endregion
+
+    #region ValidateAsync Tests - With Validators
+
+    [Test]
+    public async Task ValidateAsync_WithMatchingValidator_ExecutesValidation()
+    {
+        // Arrange
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+        };
+
+        RegisterValidator<TestValidator1>();
+        _serviceProvider = _services.BuildServiceProvider();
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -76,37 +115,24 @@ public class CustomValidatorRegistryTests
 
         // Assert
         Assert.That(result.Count(), Is.EqualTo(1));
-        Assert.That(result.First().Message, Is.EqualTo("Error 1"));
+        Assert.That(result.First().Message, Is.EqualTo("Test validation 1"));
     }
-
 
     [Test]
     public async Task ValidateAsync_WithMultipleValidators_ExecutesAll()
     {
-        // Arrange - Use real validators instead of mocks
-        var validator1 = new TestHomePageValidator
+        // Arrange
+        var metadata = new List<ValidatorMetadata>
         {
-            MessagesToReturn = new List<ValidationMessage>
-            {
-                new() { Message = "Error 1", Severity = ValidationSeverity.Error }
-            }
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" },
+            new() { ValidatorType = typeof(TestValidator2), NameOfType = "IHomePage" }
         };
 
-        var validator2 = new TestHomePageValidator2
-        {
-            MessagesToReturn = new List<ValidationMessage>
-            {
-                new() { Message = "Warning 1", Severity = ValidationSeverity.Warning }
-            }
-        };
-
-        _services.AddSingleton(validator1);
-        _services.AddSingleton<IDocumentValidator>(sp => validator1);
-        _services.AddSingleton(validator2);
-        _services.AddSingleton<IDocumentValidator>(sp => validator2);
-
+        RegisterValidator<TestValidator1>();
+        RegisterValidator<TestValidator2>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -114,36 +140,158 @@ public class CustomValidatorRegistryTests
 
         // Assert
         Assert.That(result.Count(), Is.EqualTo(2));
-        Assert.That(result.Any(m => m.Message == "Error 1"), Is.True);
-        Assert.That(result.Any(m => m.Message == "Warning 1"), Is.True);
+        Assert.That(result.Any(m => m.Message == "Test validation 1"), Is.True);
+        Assert.That(result.Any(m => m.Message == "Test validation 2"), Is.True);
     }
 
-    private class TestHomePageValidator2 : IDocumentValidator
+    [Test]
+    public async Task ValidateAsync_WithInterfaceMatch_ExecutesValidator()
     {
-        public string NameOfType => "IHomePage";
-        public List<ValidationMessage> MessagesToReturn { get; set; } = new();
-
-        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        // Arrange
+        var metadata = new List<ValidatorMetadata>
         {
-            return Task.FromResult<IEnumerable<ValidationMessage>>(MessagesToReturn);
-        }
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IBasePage" }
+        };
+
+        RegisterValidator<TestValidator1>();
+        _serviceProvider = _services.BuildServiceProvider();
+        _sut = CreateRegistry(metadata);
+
+        var content = CreateMockContentWithInterface<IHomePageWithBase, IBasePage>();
+
+        // Act
+        var result = await _sut.ValidateAsync(content);
+
+        // Assert
+        Assert.That(result.Count(), Is.EqualTo(1));
     }
 
+    [Test]
+    public async Task ValidateAsync_CachesTypeMapping()
+    {
+        // Arrange
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+        };
+
+        RegisterValidator<TestValidator1>();
+        _serviceProvider = _services.BuildServiceProvider();
+        _sut = CreateRegistry(metadata);
+
+        var content = CreateMockContent<IHomePage>();
+
+        // Act - Call twice
+        await _sut.ValidateAsync(content);
+        await _sut.ValidateAsync(content);
+
+        // Assert - Should log type matching only once (cached)
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("matched")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region Service Lifetime Tests
+
+    [Test]
+    public async Task ValidateAsync_WithSingletonValidator_ReusesSameInstance()
+    {
+        // Arrange
+        var callCount = 0;
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(CountingValidator), NameOfType = "IHomePage" }
+        };
+
+        _services.AddSingleton(new CountingValidator(() => callCount++));
+        _serviceProvider = _services.BuildServiceProvider();
+        _sut = CreateRegistry(metadata);
+
+        var content = CreateMockContent<IHomePage>();
+
+        // Act - Validate twice
+        await _sut.ValidateAsync(content);
+        await _sut.ValidateAsync(content);
+
+        // Assert - Should use same instance (constructor called once during setup)
+        Assert.That(callCount, Is.EqualTo(2), "Validator should be called twice but using same instance");
+    }
+
+    [Test]
+    public async Task ValidateAsync_WithScopedValidator_CreatesNewInstancePerScope()
+    {
+        // Arrange
+        var instanceIds = new List<Guid>();
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(ScopedTrackingValidator), NameOfType = "IHomePage" }
+        };
+
+        _services.AddScoped(sp => new ScopedTrackingValidator(instanceIds));
+        _serviceProvider = _services.BuildServiceProvider();
+        _sut = CreateRegistry(metadata);
+
+        var content = CreateMockContent<IHomePage>();
+
+        // Act - Validate twice (each creates its own scope)
+        await _sut.ValidateAsync(content);
+        await _sut.ValidateAsync(content);
+
+        // Assert - Should have two different instance IDs
+        Assert.That(instanceIds, Has.Count.EqualTo(2));
+        Assert.That(instanceIds[0], Is.Not.EqualTo(instanceIds[1]),
+            "Scoped validator should create new instance per validation call");
+    }
+
+    [Test]
+    public async Task ValidateAsync_WithTransientValidator_CreatesNewInstanceEachTime()
+    {
+        // Arrange
+        var instanceIds = new List<Guid>();
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TransientTrackingValidator), NameOfType = "IHomePage" }
+        };
+
+        _services.AddTransient(sp => new TransientTrackingValidator(instanceIds));
+        _serviceProvider = _services.BuildServiceProvider();
+        _sut = CreateRegistry(metadata);
+
+        var content = CreateMockContent<IHomePage>();
+
+        // Act
+        await _sut.ValidateAsync(content);
+        await _sut.ValidateAsync(content);
+
+        // Assert
+        Assert.That(instanceIds, Has.Count.EqualTo(2));
+        Assert.That(instanceIds[0], Is.Not.EqualTo(instanceIds[1]));
+    }
+
+    #endregion
+
+    #region Exception Handling Tests
 
     [Test]
     public async Task ValidateAsync_ValidatorThrowsException_ReturnsErrorMessage()
     {
         // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validatorMock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ThrowsAsync(new InvalidOperationException("Test exception"));
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(ThrowingValidator), NameOfType = "IHomePage" }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
+        RegisterValidator<ThrowingValidator>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -159,16 +307,15 @@ public class CustomValidatorRegistryTests
     public async Task ValidateAsync_ValidatorThrowsException_LogsError()
     {
         // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validatorMock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ThrowsAsync(new InvalidOperationException("Test exception"));
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(ThrowingValidator), NameOfType = "IHomePage" }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
+        RegisterValidator<ThrowingValidator>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -179,59 +326,7 @@ public class CustomValidatorRegistryTests
             x => x.Log(
                 LogLevel.Error,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => true),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
-    }
-
-    [Test]
-    public async Task ValidateAsync_WithInterfaceMatch_ExecutesValidator()
-    {
-        var validator = new TestInterfaceValidator();
-
-        _services.AddSingleton(validator);
-        _services.AddSingleton<IDocumentValidator>(sp => validator);
-
-        _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
-
-        var content = CreateMockContent<IHomePageWithBase>();
-
-        // Act
-        var result = await _sut.ValidateAsync(content);
-
-        // Assert
-        Assert.That(result.Count(), Is.EqualTo(1));
-        Assert.That(result.First().Message, Is.EqualTo("Interface validation"));
-    }
-
-    [Test]
-    public async Task ValidateAsync_CachesValidatorTypeMapping()
-    {
-        // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validatorMock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ReturnsAsync(new List<ValidationMessage>());
-
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
-        _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
-        var content = CreateMockContent<IHomePage>();
-
-        // Act - Call twice
-        await _sut.ValidateAsync(content);
-        await _sut.ValidateAsync(content);
-
-        // Assert - Should log discovery only once (cached)
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Debug,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Discovered")),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Error executing validator")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -246,7 +341,7 @@ public class CustomValidatorRegistryTests
     {
         // Arrange
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(new List<ValidatorMetadata>());
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -260,14 +355,15 @@ public class CustomValidatorRegistryTests
     public void HasValidator_WithMatchingValidator_ReturnsTrue()
     {
         // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
+        RegisterValidator<TestValidator1>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -281,14 +377,15 @@ public class CustomValidatorRegistryTests
     public void HasValidator_WithNonMatchingValidator_ReturnsFalse()
     {
         // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IArticlePage");
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IArticle" }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
+        RegisterValidator<TestValidator1>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContent<IHomePage>();
 
         // Act
@@ -302,14 +399,15 @@ public class CustomValidatorRegistryTests
     public void HasValidator_WithInterfaceMatch_ReturnsTrue()
     {
         // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IBasePage");
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IBasePage" }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
+        RegisterValidator<TestValidator1>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContentWithInterface<IHomePageWithBase, IBasePage>();
 
         // Act
@@ -327,14 +425,15 @@ public class CustomValidatorRegistryTests
     public void ClearValidatorCache_ClearsTypeCache()
     {
         // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
+        RegisterValidator<TestValidator1>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
+
         var content = CreateMockContent<IHomePage>();
 
         // Prime the cache
@@ -342,77 +441,17 @@ public class CustomValidatorRegistryTests
 
         // Act
         _sut.ClearValidatorCache();
-        _sut.HasValidator(content); // This should trigger discovery again
+        _sut.HasValidator(content); // Should rebuild cache
 
-        // Assert - Should log discovery twice (once before clear, once after)
+        // Assert - Should log type matching twice (once before clear, once after)
         _loggerMock.Verify(
             x => x.Log(
                 LogLevel.Debug,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Discovered")),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("matched")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Exactly(2));
-    }
-
-    #endregion
-
-    #region Service Lifetime Tests
-
-    [Test]
-    public async Task ValidateAsync_WithScopedValidator_CreatesNewInstancePerScope()
-    {
-        // Arrange
-        var callCount = 0;
-
-        // Register a factory that creates a new validator each time and increments counter
-        _services.AddScoped<TestValidator>(sp =>
-        {
-            callCount++;
-            return new TestValidator();
-        });
-        _services.AddScoped<IDocumentValidator>(sp => sp.GetRequiredService<TestValidator>());
-
-        _serviceProvider = _services.BuildServiceProvider();
-
-        // Act - Create two scopes
-        using (var scope1 = _serviceProvider.CreateScope())
-        {
-            var sut1 = new CustomValidatorRegistry(scope1.ServiceProvider, _loggerMock.Object);
-            var content = CreateMockContent<IHomePage>();
-            await sut1.ValidateAsync(content);
-        }
-
-        using (var scope2 = _serviceProvider.CreateScope())
-        {
-            var sut2 = new CustomValidatorRegistry(scope2.ServiceProvider, _loggerMock.Object);
-            var content = CreateMockContent<IHomePage>();
-            await sut2.ValidateAsync(content);
-        }
-
-        // Assert - Should have been called twice (different scopes = different instances)
-        Assert.That(callCount, Is.EqualTo(2));
-    }
-
-    [Test]
-    public async Task ValidateAsync_WithSingletonValidator_ReusesSameInstance()
-    {
-        // Arrange
-        var validator = new TestValidator();
-
-        _services.AddSingleton<TestValidator>(validator);
-        _services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<TestValidator>());
-
-        _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
-        var content = CreateMockContent<IHomePage>();
-
-        // Act
-        await _sut.ValidateAsync(content);
-        await _sut.ValidateAsync(content);
-
-        // Assert
-        Assert.That(validator.CallCount, Is.EqualTo(2));
     }
 
     #endregion
@@ -423,19 +462,14 @@ public class CustomValidatorRegistryTests
     public async Task ValidateAsync_ConcurrentCalls_ThreadSafe()
     {
         // Arrange
-        var validatorMock = new Mock<IDocumentValidator>();
-        validatorMock.Setup(v => v.NameOfType).Returns("IHomePage");
-        validatorMock.Setup(v => v.ValidateAsync(It.IsAny<IPublishedContent>()))
-            .ReturnsAsync(new List<ValidationMessage>
-            {
-                new() { Message = "Test", Severity = ValidationSeverity.Info }
-            });
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+        };
 
-        _services.AddSingleton(validatorMock.Object);
-        _services.AddSingleton<IDocumentValidator>(sp => validatorMock.Object);
-
+        RegisterValidator<TestValidator1>();
         _serviceProvider = _services.BuildServiceProvider();
-        _sut = new CustomValidatorRegistry(_serviceProvider, _loggerMock.Object);
+        _sut = CreateRegistry(metadata);
 
         // Act - Concurrent validations
         var tasks = Enumerable.Range(0, 10).Select(_ =>
@@ -450,12 +484,28 @@ public class CustomValidatorRegistryTests
 
     #endregion
 
-    #region Helper Methods and Classes
+    #region Helper Methods
+
+    private CustomValidatorRegistry CreateRegistry(List<ValidatorMetadata> metadata)
+    {
+        var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
+        return new CustomValidatorRegistry(scopeFactory, metadata, _loggerMock.Object);
+    }
+
+    private void RegisterValidator<T>() where T : class, IDocumentValidator
+    {
+        _services.AddSingleton<T>();
+    }
 
     private static T CreateMockContent<T>() where T : class, IPublishedContent
     {
+        var contentTypeMock = new Mock<IPublishedContentType>();
+        contentTypeMock.Setup(x => x.Alias).Returns("testPage");
+
         var mock = new Mock<T>();
         mock.Setup(c => c.Id).Returns(1);
+        mock.Setup(c => c.Key).Returns(Guid.NewGuid());
+        mock.Setup(c => c.ContentType).Returns(contentTypeMock.Object);
         return mock.Object;
     }
 
@@ -463,46 +513,98 @@ public class CustomValidatorRegistryTests
         where T : class, IPublishedContent, TInterface
         where TInterface : class
     {
+        var contentTypeMock = new Mock<IPublishedContentType>();
+        contentTypeMock.Setup(x => x.Alias).Returns("testPage");
+
         var mock = new Mock<T>();
         mock.Setup(c => c.Id).Returns(1);
+        mock.Setup(c => c.Key).Returns(Guid.NewGuid());
+        mock.Setup(c => c.ContentType).Returns(contentTypeMock.Object);
         mock.As<TInterface>();
         return mock.Object;
     }
 
-    // Test validator for lifetime tests
-    private class TestValidator : IDocumentValidator
+    #endregion
+
+    #region Test Validators
+
+    private class TestValidator1 : IDocumentValidator
     {
-        public int CallCount { get; private set; }
-        public string NameOfType => "IHomePage";
-
-        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
-        {
-            CallCount++;
-            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
-        }
-    }
-
-    private class TestHomePageValidator : IDocumentValidator
-    {
-        public string NameOfType => "IHomePage";
-        public List<ValidationMessage> MessagesToReturn { get; set; } = new();
-
-        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
-        {
-            return Task.FromResult<IEnumerable<ValidationMessage>>(MessagesToReturn);
-        }
-    }
-
-    private class TestInterfaceValidator : IDocumentValidator
-    {
-        public string NameOfType => "IBasePage";
-
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
             {
-                new() { Message = "Interface validation", Severity = ValidationSeverity.Info }
+                new() { Message = "Test validation 1", Severity = ValidationSeverity.Info }
             });
+        }
+    }
+
+    private class TestValidator2 : IDocumentValidator
+    {
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
+            {
+                new() { Message = "Test validation 2", Severity = ValidationSeverity.Warning }
+            });
+        }
+    }
+
+    private class ThrowingValidator : IDocumentValidator
+    {
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            throw new InvalidOperationException("Test exception");
+        }
+    }
+
+    private class CountingValidator : IDocumentValidator
+    {
+        private readonly Action _onValidate;
+
+        public CountingValidator(Action onValidate)
+        {
+            _onValidate = onValidate;
+        }
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            _onValidate();
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
+        }
+    }
+
+    private class ScopedTrackingValidator : IDocumentValidator
+    {
+        private readonly Guid _instanceId = Guid.NewGuid();
+        private readonly List<Guid> _tracker;
+
+        public ScopedTrackingValidator(List<Guid> tracker)
+        {
+            _tracker = tracker;
+            _tracker.Add(_instanceId);
+        }
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
+        }
+    }
+
+    private class TransientTrackingValidator : IDocumentValidator
+    {
+        private readonly Guid _instanceId = Guid.NewGuid();
+        private readonly List<Guid> _tracker;
+
+        public TransientTrackingValidator(List<Guid> tracker)
+        {
+            _tracker = tracker;
+            _tracker.Add(_instanceId);
+        }
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
         }
     }
 

@@ -4,6 +4,7 @@ using Umbraco.Cms.Core.Models.PublishedContent;
 
 // Test interfaces
 public interface IHomePage : IPublishedContent { }
+
 public interface IArticlePage : IPublishedContent { }
 
 public interface IBasePage { }

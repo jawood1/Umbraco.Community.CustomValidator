@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using NUnit.Framework;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Services;
@@ -20,7 +19,7 @@ using Umbraco.Community.CustomValidator.Validation;
 namespace Umbraco.Community.CustomValidator.Tests.Controllers;
 
 [TestFixture]
-public class DocumentValidationControllerTests
+public sealed class DocumentValidationControllerTests
 {
     private CustomValidationService _validationExecutor = null!;
     private Mock<IUmbracoContextAccessor> _umbracoContextAccessorMock = null!;
@@ -46,10 +45,14 @@ public class DocumentValidationControllerTests
 
         _serviceProvider = services.BuildServiceProvider();
 
-        var hybridCache = _serviceProvider.GetRequiredService<HybridCache>();
-        var documentValidationService = new CustomValidatorRegistry(
-            _serviceProvider,
+        var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
+
+        var customValidatorRegistry = new CustomValidatorRegistry(
+            scopeFactory,
+            new List<ValidatorMetadata>(),
             _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
+
+        var hybridCache = _serviceProvider.GetRequiredService<HybridCache>();
 
         var cacheService = new CustomValidationCacheService(
             hybridCache,
@@ -62,7 +65,7 @@ public class DocumentValidationControllerTests
             .ReturnsAsync("en-GB");
 
         _validationExecutor = new CustomValidationService(
-            documentValidationService,
+            customValidatorRegistry,
             cacheService,
             variationContextAccessorMock.Object,
             languageServiceMock.Object,
@@ -299,21 +302,27 @@ public class DocumentValidationControllerTests
 
     private CustomValidationService CreateValidationExecutorWithValidator()
     {
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator), NameOfType = "IPublishedContent" }
+        };
+
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddHybridCache();
         services.AddSingleton<TestValidator>();
-        services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<TestValidator>());
 
         var sp = services.BuildServiceProvider();
+        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+
+        var validatorRegistry = new CustomValidatorRegistry(
+            scopeFactory,
+            metadata,
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var options = new CustomValidatorOptions { CacheExpirationMinutes = 30 };
         var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         optionsMock.Setup(x => x.Value).Returns(options);
-
-        var validationService = new CustomValidatorRegistry(
-            sp,
-            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var cacheService = new CustomValidationCacheService(
             sp.GetRequiredService<HybridCache>(),
@@ -324,7 +333,7 @@ public class DocumentValidationControllerTests
         var languageServiceMock = new Mock<ILanguageService>();
 
         return new CustomValidationService(
-            validationService,
+            validatorRegistry,
             cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
@@ -333,6 +342,12 @@ public class DocumentValidationControllerTests
 
     private CustomValidationService CreateValidationExecutorWithTrackingValidator(Action onValidate)
     {
+
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TrackingValidator), NameOfType = "IPublishedContent" }
+        };
+
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddHybridCache();
@@ -341,14 +356,17 @@ public class DocumentValidationControllerTests
         services.AddSingleton(validator);
         services.AddSingleton<IDocumentValidator>(sp => validator);
 
+
         var sp = services.BuildServiceProvider();
+        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
 
         var options = new CustomValidatorOptions { CacheExpirationMinutes = 30 };
         var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         optionsMock.Setup(x => x.Value).Returns(options);
 
-        var validationService = new CustomValidatorRegistry(
-            sp,
+        var validatorRegistry = new CustomValidatorRegistry(
+            scopeFactory,
+            metadata,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var cacheService = new CustomValidationCacheService(
@@ -360,7 +378,7 @@ public class DocumentValidationControllerTests
         var languageServiceMock = new Mock<ILanguageService>();
 
         return new CustomValidationService(
-            validationService,
+            validatorRegistry,
             cacheService,
             variationContextMock.Object,
             languageServiceMock.Object,
@@ -373,8 +391,6 @@ public class DocumentValidationControllerTests
 
     private class TestValidator : IDocumentValidator
     {
-        public string NameOfType => "IPublishedContent";
-
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
@@ -392,8 +408,6 @@ public class DocumentValidationControllerTests
         {
             _onValidate = onValidate;
         }
-
-        public string NameOfType => "IPublishedContent";
 
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {

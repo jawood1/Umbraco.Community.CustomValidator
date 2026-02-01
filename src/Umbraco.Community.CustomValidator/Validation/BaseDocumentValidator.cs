@@ -15,7 +15,6 @@ namespace Umbraco.Community.CustomValidator.Validation;
 public abstract class BaseDocumentValidator<T> : IDocumentValidator<T>, IDocumentValidator
     where T : class, IPublishedContent
 {
-    public string NameOfType { get; init; } = typeof(T).Name;
 
     public abstract Task<IEnumerable<ValidationMessage>> ValidateAsync(T content);
 

@@ -8,32 +8,8 @@ using Umbraco.Community.CustomValidator.Validation;
 namespace Umbraco.Community.CustomValidator.Tests.Validation;
 
 [TestFixture]
-public class BaseDocumentValidatorTests
+public sealed class BaseDocumentValidatorTests
 {
-    #region NameOfType Tests
-
-    [Test]
-    public void NameOfType_AutomaticallySetFromGenericType()
-    {
-        // Arrange & Act
-        var validator = new TestHomePageValidator();
-
-        // Assert
-        Assert.That(validator.NameOfType, Is.EqualTo("IHomePage"));
-    }
-
-    [Test]
-    public void NameOfType_CanBeOverridden()
-    {
-        // Arrange & Act
-        var validator = new TestHomePageValidator { NameOfType = "CustomName" };
-
-        // Assert
-        Assert.That(validator.NameOfType, Is.EqualTo("CustomName"));
-    }
-
-    #endregion
-
     #region ValidateAsync - Generic Tests
 
     [Test]

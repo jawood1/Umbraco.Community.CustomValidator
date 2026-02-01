@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.CustomValidator.Interfaces;
+using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Extensions;
 
@@ -8,35 +10,48 @@ public static class ValidatorBuilderExtensions
 {
     extension(IUmbracoBuilder builder)
     {
-        public IUmbracoBuilder AddDocumentValidator<T>()
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator as a singleton with explicit content type.
+        /// </summary>
+        public IUmbracoBuilder AddDocumentValidator<TValidator, TContent>()
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            builder.Services.AddSingleton<T>();
-            builder.Services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<T>());
+            builder.Services.AddDocumentValidator<TValidator, TContent>();
+
             return builder;
         }
 
-        public IUmbracoBuilder AddDocumentValidator<T>(ServiceLifetime lifetime)
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator with specified lifetime and explicit content type.
+        /// </summary>
+        public IUmbracoBuilder AddDocumentValidator<TValidator, TContent>(ServiceLifetime lifetime)
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            builder.Services.Add(new ServiceDescriptor(typeof(T), typeof(T), lifetime));
-            builder.Services.Add(new ServiceDescriptor(typeof(IDocumentValidator), sp => sp.GetRequiredService<T>(), lifetime));
+            builder.Services.AddDocumentValidator<TValidator, TContent>(lifetime);
             return builder;
         }
 
-        public IUmbracoBuilder AddScopedDocumentValidator<T>()
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator as scoped with explicit content type.
+        /// </summary>
+        public IUmbracoBuilder AddScopedDocumentValidator<TValidator, TContent>()
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            builder.Services.AddScoped<T>();
-            builder.Services.AddScoped<IDocumentValidator>(sp => sp.GetRequiredService<T>());
+            builder.Services.AddScopedDocumentValidator<TValidator, TContent>();
             return builder;
         }
 
-        public IUmbracoBuilder AddTransientDocumentValidator<T>()
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator as transient with explicit content type.
+        /// </summary>
+        public IUmbracoBuilder AddTransientDocumentValidator<TValidator, TContent>()
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            builder.Services.AddTransient<T>();
-            builder.Services.AddTransient<IDocumentValidator>(sp => sp.GetRequiredService<T>());
+            builder.Services.AddTransientDocumentValidator<TValidator, TContent>();
             return builder;
         }
     }
@@ -44,36 +59,81 @@ public static class ValidatorBuilderExtensions
     // IServiceCollection overloads
     extension(IServiceCollection services)
     {
-        public IServiceCollection AddDocumentValidator<T>()
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator as a singleton with explicit content type.
+        /// </summary>
+        public IServiceCollection AddDocumentValidator<TValidator, TContent>()
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            services.AddSingleton<T>();
-            services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<T>());
+            services.AddSingleton<TValidator>();
+            services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<TValidator>());
+
+            services.AddSingleton(new ValidatorMetadata
+            {
+                ValidatorType = typeof(TValidator),
+                NameOfType = typeof(TContent).Name
+            });
+
             return services;
         }
 
-        public IServiceCollection AddDocumentValidator<T>(ServiceLifetime lifetime)
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator with specified lifetime and explicit content type.
+        /// </summary>
+        public IServiceCollection AddDocumentValidator<TValidator, TContent>(ServiceLifetime lifetime)
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            services.Add(new ServiceDescriptor(typeof(T), typeof(T), lifetime));
-            services.Add(new ServiceDescriptor(typeof(IDocumentValidator), sp => sp.GetRequiredService<T>(), lifetime));
+            services.Add(new ServiceDescriptor(typeof(TValidator), typeof(TValidator), lifetime));
+            services.Add(new ServiceDescriptor(typeof(IDocumentValidator), sp => sp.GetRequiredService<TValidator>(), lifetime));
+
+            services.AddSingleton(new ValidatorMetadata
+            {
+                ValidatorType = typeof(TValidator),
+                NameOfType = typeof(TContent).Name
+            });
+
             return services;
         }
 
-        public IServiceCollection AddScopedDocumentValidator<T>()
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator as scoped with explicit content type.
+        /// </summary>
+        public IServiceCollection AddScopedDocumentValidator<TValidator, TContent>()
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            services.AddScoped<T>();
-            services.AddScoped<IDocumentValidator>(sp => sp.GetRequiredService<T>());
+            services.AddScoped<TValidator>();
+            services.AddScoped<IDocumentValidator>(sp => sp.GetRequiredService<TValidator>());
+            services.AddMetaData<TValidator, TContent>();
+
             return services;
         }
 
-        public IServiceCollection AddTransientDocumentValidator<T>()
-            where T : class, IDocumentValidator
+        /// <summary>
+        /// Registers a document validator as transient with explicit content type.
+        /// </summary>
+        public IServiceCollection AddTransientDocumentValidator<TValidator, TContent>()
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
         {
-            services.AddTransient<T>();
-            services.AddTransient<IDocumentValidator>(sp => sp.GetRequiredService<T>());
+            services.AddTransient<TValidator>();
+            services.AddTransient<IDocumentValidator>(sp => sp.GetRequiredService<TValidator>());
+            services.AddMetaData<TValidator, TContent>();
+
             return services;
+        }
+
+        private void AddMetaData<TValidator, TContent>()
+            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TContent : class, IPublishedContent
+        {
+            services.AddSingleton(new ValidatorMetadata
+            {
+                ValidatorType = typeof(TValidator),
+                NameOfType = typeof(TContent).Name
+            });
         }
     }
 }
