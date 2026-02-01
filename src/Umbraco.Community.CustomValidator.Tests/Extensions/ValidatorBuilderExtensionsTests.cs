@@ -6,6 +6,7 @@ using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.CustomValidator.Extensions;
 using Umbraco.Community.CustomValidator.Interfaces;
 using Umbraco.Community.CustomValidator.Models;
+using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Extensions;
 
@@ -29,10 +30,10 @@ public class ValidatorBuilderExtensionsTests
     public void AddDocumentValidator_RegistersValidatorAsSingleton()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>();
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
-        // Assert - Get twice and verify same instance
+        // Assert
         var instance1 = serviceProvider.GetRequiredService<TestValidator>();
         var instance2 = serviceProvider.GetRequiredService<TestValidator>();
 
@@ -43,7 +44,7 @@ public class ValidatorBuilderExtensionsTests
     public void AddDocumentValidator_RegistersAsIDocumentValidator()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>();
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -52,13 +53,27 @@ public class ValidatorBuilderExtensionsTests
     }
 
     [Test]
+    public void AddDocumentValidator_RegistersMetadata()
+    {
+        // Act
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().ToList();
+        Assert.That(metadata, Has.Count.EqualTo(1));
+        Assert.That(metadata[0].ValidatorType, Is.EqualTo(typeof(TestValidator)));
+        Assert.That(metadata[0].NameOfType, Is.EqualTo("IHomePage"));
+    }
+
+    [Test]
     public void AddDocumentValidator_BothRegistrationsReturnSameInstance()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>();
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
-        // Assert - Concrete and interface should resolve to same instance
+        // Assert
         var concrete = serviceProvider.GetRequiredService<TestValidator>();
         var interface1 = serviceProvider.GetRequiredService<IDocumentValidator>();
 
@@ -69,7 +84,7 @@ public class ValidatorBuilderExtensionsTests
     public void AddDocumentValidator_ReturnsBuilder()
     {
         // Act
-        var result = _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>();
+        var result = _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
 
         // Assert
         Assert.That(result, Is.SameAs(_umbracoBuilderMock.Object));
@@ -83,7 +98,7 @@ public class ValidatorBuilderExtensionsTests
     public void AddDocumentValidator_WithSingletonLifetime_RegistersAsSingleton()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>(ServiceLifetime.Singleton);
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>(ServiceLifetime.Singleton);
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -97,26 +112,23 @@ public class ValidatorBuilderExtensionsTests
     public void AddDocumentValidator_WithScopedLifetime_RegistersAsScoped()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>(ServiceLifetime.Scoped);
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>(ServiceLifetime.Scoped);
         var serviceProvider = _services.BuildServiceProvider();
 
-        // Assert - Same within scope, different across scopes
+        // Assert
         using (var scope1 = serviceProvider.CreateScope())
         {
             var instance1 = scope1.ServiceProvider.GetRequiredService<TestValidator>();
             var instance2 = scope1.ServiceProvider.GetRequiredService<TestValidator>();
-            Assert.That(instance1, Is.SameAs(instance2));
+            Assert.That(instance1, Is.SameAs(instance2), "Same within scope");
         }
 
         using (var scope2 = serviceProvider.CreateScope())
+        using (var scope3 = serviceProvider.CreateScope())
         {
-            var instance3 = scope2.ServiceProvider.GetRequiredService<TestValidator>();
-
-            using (var scope1 = serviceProvider.CreateScope())
-            {
-                var instance1 = scope1.ServiceProvider.GetRequiredService<TestValidator>();
-                Assert.That(instance3, Is.Not.SameAs(instance1));
-            }
+            var instance2 = scope2.ServiceProvider.GetRequiredService<TestValidator>();
+            var instance3 = scope3.ServiceProvider.GetRequiredService<TestValidator>();
+            Assert.That(instance2, Is.Not.SameAs(instance3), "Different across scopes");
         }
     }
 
@@ -124,14 +136,27 @@ public class ValidatorBuilderExtensionsTests
     public void AddDocumentValidator_WithTransientLifetime_RegistersAsTransient()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>(ServiceLifetime.Transient);
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>(ServiceLifetime.Transient);
         var serviceProvider = _services.BuildServiceProvider();
 
-        // Assert - Different instances each time
+        // Assert
         var instance1 = serviceProvider.GetRequiredService<TestValidator>();
         var instance2 = serviceProvider.GetRequiredService<TestValidator>();
 
         Assert.That(instance1, Is.Not.SameAs(instance2));
+    }
+
+    [Test]
+    public void AddDocumentValidator_WithLifetime_RegistersMetadata()
+    {
+        // Act
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>(ServiceLifetime.Scoped);
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().ToList();
+        Assert.That(metadata, Has.Count.EqualTo(1));
+        Assert.That(metadata[0].NameOfType, Is.EqualTo("IHomePage"));
     }
 
     #endregion
@@ -142,7 +167,7 @@ public class ValidatorBuilderExtensionsTests
     public void AddScopedDocumentValidator_RegistersAsScoped()
     {
         // Act
-        _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator>();
+        _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -150,26 +175,36 @@ public class ValidatorBuilderExtensionsTests
         {
             var instance1 = scope1.ServiceProvider.GetRequiredService<TestValidator>();
             var instance2 = scope1.ServiceProvider.GetRequiredService<TestValidator>();
-            Assert.That(instance1, Is.SameAs(instance2), "Should be same within scope");
+            Assert.That(instance1, Is.SameAs(instance2), "Same within scope");
         }
 
         using (var scope2 = serviceProvider.CreateScope())
+        using (var scope3 = serviceProvider.CreateScope())
         {
-            var instance3 = scope2.ServiceProvider.GetRequiredService<TestValidator>();
-
-            using (var scope1 = serviceProvider.CreateScope())
-            {
-                var instance1 = scope1.ServiceProvider.GetRequiredService<TestValidator>();
-                Assert.That(instance3, Is.Not.SameAs(instance1), "Should be different across scopes");
-            }
+            var instance2 = scope2.ServiceProvider.GetRequiredService<TestValidator>();
+            var instance3 = scope3.ServiceProvider.GetRequiredService<TestValidator>();
+            Assert.That(instance2, Is.Not.SameAs(instance3), "Different across scopes");
         }
+    }
+
+    [Test]
+    public void AddScopedDocumentValidator_RegistersMetadata()
+    {
+        // Act
+        _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
+        Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
+        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
     }
 
     [Test]
     public void AddScopedDocumentValidator_ReturnsBuilder()
     {
         // Act
-        var result = _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator>();
+        var result = _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator, IHomePage>();
 
         // Assert
         Assert.That(result, Is.SameAs(_umbracoBuilderMock.Object));
@@ -183,10 +218,10 @@ public class ValidatorBuilderExtensionsTests
     public void AddTransientDocumentValidator_RegistersAsTransient()
     {
         // Act
-        _umbracoBuilderMock.Object.AddTransientDocumentValidator<TestValidator>();
+        _umbracoBuilderMock.Object.AddTransientDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
-        // Assert - New instance each time
+        // Assert
         var instance1 = serviceProvider.GetRequiredService<TestValidator>();
         var instance2 = serviceProvider.GetRequiredService<TestValidator>();
 
@@ -194,10 +229,23 @@ public class ValidatorBuilderExtensionsTests
     }
 
     [Test]
+    public void AddTransientDocumentValidator_RegistersMetadata()
+    {
+        // Act
+        _umbracoBuilderMock.Object.AddTransientDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
+        Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
+        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+    }
+
+    [Test]
     public void AddTransientDocumentValidator_ReturnsBuilder()
     {
         // Act
-        var result = _umbracoBuilderMock.Object.AddTransientDocumentValidator<TestValidator>();
+        var result = _umbracoBuilderMock.Object.AddTransientDocumentValidator<TestValidator, IHomePage>();
 
         // Assert
         Assert.That(result, Is.SameAs(_umbracoBuilderMock.Object));
@@ -211,7 +259,7 @@ public class ValidatorBuilderExtensionsTests
     public void ServiceCollection_AddDocumentValidator_RegistersAsSingleton()
     {
         // Act
-        _services.AddDocumentValidator<TestValidator>();
+        _services.AddDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -225,7 +273,7 @@ public class ValidatorBuilderExtensionsTests
     public void ServiceCollection_AddDocumentValidator_RegistersAsIDocumentValidator()
     {
         // Act
-        _services.AddDocumentValidator<TestValidator>();
+        _services.AddDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -234,10 +282,23 @@ public class ValidatorBuilderExtensionsTests
     }
 
     [Test]
+    public void ServiceCollection_AddDocumentValidator_RegistersMetadata()
+    {
+        // Act
+        _services.AddDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
+        Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
+        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+    }
+
+    [Test]
     public void ServiceCollection_AddDocumentValidator_ReturnsServiceCollection()
     {
         // Act
-        var result = _services.AddDocumentValidator<TestValidator>();
+        var result = _services.AddDocumentValidator<TestValidator, IHomePage>();
 
         // Assert
         Assert.That(result, Is.SameAs(_services));
@@ -251,7 +312,7 @@ public class ValidatorBuilderExtensionsTests
     public void ServiceCollection_AddDocumentValidator_WithScopedLifetime_RegistersAsScoped()
     {
         // Act
-        _services.AddDocumentValidator<TestValidator>(ServiceLifetime.Scoped);
+        _services.AddDocumentValidator<TestValidator, IHomePage>(ServiceLifetime.Scoped);
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -267,7 +328,7 @@ public class ValidatorBuilderExtensionsTests
     public void ServiceCollection_AddDocumentValidator_WithTransientLifetime_RegistersAsTransient()
     {
         // Act
-        _services.AddDocumentValidator<TestValidator>(ServiceLifetime.Transient);
+        _services.AddDocumentValidator<TestValidator, IHomePage>(ServiceLifetime.Transient);
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -285,7 +346,7 @@ public class ValidatorBuilderExtensionsTests
     public void ServiceCollection_AddScopedDocumentValidator_RegistersAsScoped()
     {
         // Act
-        _services.AddScopedDocumentValidator<TestValidator>();
+        _services.AddScopedDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -298,10 +359,22 @@ public class ValidatorBuilderExtensionsTests
     }
 
     [Test]
+    public void ServiceCollection_AddScopedDocumentValidator_RegistersMetadata()
+    {
+        // Act
+        _services.AddScopedDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
+        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+    }
+
+    [Test]
     public void ServiceCollection_AddScopedDocumentValidator_ReturnsServiceCollection()
     {
         // Act
-        var result = _services.AddScopedDocumentValidator<TestValidator>();
+        var result = _services.AddScopedDocumentValidator<TestValidator, IHomePage>();
 
         // Assert
         Assert.That(result, Is.SameAs(_services));
@@ -315,7 +388,7 @@ public class ValidatorBuilderExtensionsTests
     public void ServiceCollection_AddTransientDocumentValidator_RegistersAsTransient()
     {
         // Act
-        _services.AddTransientDocumentValidator<TestValidator>();
+        _services.AddTransientDocumentValidator<TestValidator, IHomePage>();
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -326,10 +399,22 @@ public class ValidatorBuilderExtensionsTests
     }
 
     [Test]
+    public void ServiceCollection_AddTransientDocumentValidator_RegistersMetadata()
+    {
+        // Act
+        _services.AddTransientDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
+        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+    }
+
+    [Test]
     public void ServiceCollection_AddTransientDocumentValidator_ReturnsServiceCollection()
     {
         // Act
-        var result = _services.AddTransientDocumentValidator<TestValidator>();
+        var result = _services.AddTransientDocumentValidator<TestValidator, IHomePage>();
 
         // Assert
         Assert.That(result, Is.SameAs(_services));
@@ -337,14 +422,14 @@ public class ValidatorBuilderExtensionsTests
 
     #endregion
 
-    #region Multiple Validators
+    #region Multiple Validators Tests
 
     [Test]
     public void AddDocumentValidator_MultipleValidators_AllRegistered()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>();
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator2>();
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator2, IArticle>();
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
@@ -355,56 +440,150 @@ public class ValidatorBuilderExtensionsTests
     }
 
     [Test]
+    public void AddDocumentValidator_MultipleValidators_AllMetadataRegistered()
+    {
+        // Act
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator2, IArticle>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().ToList();
+        Assert.That(metadata, Has.Count.EqualTo(2));
+        Assert.That(metadata.Any(m => m.NameOfType == "IHomePage"), Is.True);
+        Assert.That(metadata.Any(m => m.NameOfType == "IArticle"), Is.True);
+    }
+
+    [Test]
     public void AddDocumentValidator_MixedLifetimes_RegistersCorrectly()
     {
         // Act
-        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator>(); // Singleton
-        _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator2>(); // Scoped
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>(); // Singleton
+        _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator2, IArticle>(); // Scoped
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert - Singleton behavior
-        var singleton1 = serviceProvider.GetServices<IDocumentValidator>()
-            .OfType<TestValidator>().First();
-        var singleton2 = serviceProvider.GetServices<IDocumentValidator>()
-            .OfType<TestValidator>().First();
+        var singleton1 = serviceProvider.GetRequiredService<TestValidator>();
+        var singleton2 = serviceProvider.GetRequiredService<TestValidator>();
         Assert.That(singleton1, Is.SameAs(singleton2));
 
         // Assert - Scoped behavior
         using (var scope1 = serviceProvider.CreateScope())
         using (var scope2 = serviceProvider.CreateScope())
         {
-            var scoped1 = scope1.ServiceProvider.GetServices<IDocumentValidator>()
-                .OfType<TestValidator2>().First();
-            var scoped2 = scope2.ServiceProvider.GetServices<IDocumentValidator>()
-                .OfType<TestValidator2>().First();
+            var scoped1 = scope1.ServiceProvider.GetRequiredService<TestValidator2>();
+            var scoped2 = scope2.ServiceProvider.GetRequiredService<TestValidator2>();
 
             Assert.That(scoped1, Is.Not.SameAs(scoped2));
         }
+    }
+
+    [Test]
+    public void AddDocumentValidator_MixedLifetimes_AllMetadataIsSingleton()
+    {
+        // Act
+        _umbracoBuilderMock.Object.AddDocumentValidator<TestValidator, IHomePage>();
+        _umbracoBuilderMock.Object.AddScopedDocumentValidator<TestValidator2, IArticle>();
+        _umbracoBuilderMock.Object.AddTransientDocumentValidator<TestValidator3, IProduct>();
+
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert - All metadata should be singleton (same instances)
+        var metadata1 = serviceProvider.GetServices<ValidatorMetadata>().ToList();
+        var metadata2 = serviceProvider.GetServices<ValidatorMetadata>().ToList();
+
+        Assert.That(metadata1, Has.Count.EqualTo(3));
+        Assert.That(metadata2, Has.Count.EqualTo(3));
+
+        // Metadata instances should be the same (singleton)
+        for (int i = 0; i < 3; i++)
+        {
+            Assert.That(metadata1[i], Is.SameAs(metadata2[i]));
+        }
+    }
+
+    #endregion
+
+    #region Metadata Correctness Tests
+
+    [Test]
+    public void AddDocumentValidator_MetadataNameOfType_MatchesGenericParameter()
+    {
+        // Act
+        _services.AddDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
+        Assert.That(metadata.NameOfType, Is.EqualTo(typeof(IHomePage).Name));
+        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+    }
+
+    [Test]
+    public void AddDocumentValidator_MetadataValidatorType_MatchesValidatorType()
+    {
+        // Act
+        _services.AddDocumentValidator<TestValidator, IHomePage>();
+        var serviceProvider = _services.BuildServiceProvider();
+
+        // Assert
+        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
+        Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
     }
 
     #endregion
 
     #region Test Validators
 
-    private class TestValidator : IDocumentValidator
+    private class TestValidator : IDocumentValidator<IHomePage>, IDocumentValidator
     {
-        public string NameOfType => "Test";
+        public string NameOfType => "IHomePage";
 
-        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IHomePage content)
         {
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
         }
-    }
-
-    private class TestValidator2 : IDocumentValidator
-    {
-        public string NameOfType => "Test2";
 
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {
+            return ValidateAsync((IHomePage)content);
+        }
+    }
+
+    private class TestValidator2 : IDocumentValidator<IArticle>, IDocumentValidator
+    {
+        public string NameOfType => "IArticle";
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IArticle content)
+        {
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
+        }
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return ValidateAsync((IArticle)content);
+        }
+    }
+
+    private class TestValidator3 : IDocumentValidator<IProduct>, IDocumentValidator
+    {
+        public string NameOfType => "IProduct";
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IProduct content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
+        }
+
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return ValidateAsync((IProduct)content);
         }
     }
 
     #endregion
 }
+
+// Test content type interfaces
+public interface IHomePage : IPublishedContent { }
+public interface IArticle : IPublishedContent { }
+public interface IProduct : IPublishedContent { }

@@ -21,6 +21,7 @@ public sealed class CustomValidationServiceTests
     private Mock<IVariationContextAccessor> _variationContextAccessorMock = null!;
     private Mock<ILanguageService> _languageServiceMock = null!;
     private Mock<ILogger<CustomValidationService>> _loggerMock = null!;
+    private Mock<IOptions<CustomValidatorOptions>> _optionsMock = null!;
     private CustomValidationService _sut = null!;
 
     private ServiceProvider _serviceProvider = null!;
@@ -41,16 +42,20 @@ public sealed class CustomValidationServiceTests
             CacheExpirationMinutes = 30,
             TreatWarningsAsErrors = false
         };
-        var optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
-        optionsMock.Setup(x => x.Value).Returns(options);
 
+        _optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
+        _optionsMock.Setup(x => x.Value).Returns(options);
+
+        // Create registry with empty metadata (no validators by default)
+        var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
         _validatorRegistry = new CustomValidatorRegistry(
-            _serviceProvider,
+            scopeFactory,
+            new List<ValidatorMetadata>(),
             _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         _cacheService = new CustomValidationCacheService(
             _hybridCache,
-            optionsMock.Object,
+            _optionsMock.Object,
             _serviceProvider.GetRequiredService<ILogger<CustomValidationCacheService>>());
 
         _variationContextAccessorMock = new Mock<IVariationContextAccessor>();
@@ -96,14 +101,7 @@ public sealed class CustomValidationServiceTests
     {
         // Arrange
         var content = CreateMockContent();
-        var validationService = CreateValidationServiceWithValidator();
-
-        var sut = new CustomValidationService(
-            validationService,
-            _cacheService,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
-            _loggerMock.Object);
+        var sut = CreateServiceWithValidator();
 
         // Act
         var result = await sut.ExecuteValidationAsync(content, "en-US");
@@ -112,6 +110,22 @@ public sealed class CustomValidationServiceTests
         Assert.That(result.HasValidator, Is.True);
         Assert.That(result.Messages?.Count(), Is.EqualTo(1));
         Assert.That(result.Messages.First().Message, Is.EqualTo("Test validation"));
+    }
+
+    [Test]
+    public async Task ExecuteValidationAsync_CalledTwice_UsesCacheOnSecondCall()
+    {
+        // Arrange
+        var content = CreateMockContent();
+        var callCount = 0;
+        var sut = CreateServiceWithCountingValidator(() => callCount++);
+
+        // Act
+        await sut.ExecuteValidationAsync(content, "en-US");
+        await sut.ExecuteValidationAsync(content, "en-US");
+
+        // Assert
+        Assert.That(callCount, Is.EqualTo(1), "Validator should only be called once due to caching");
     }
 
     #endregion
@@ -124,14 +138,7 @@ public sealed class CustomValidationServiceTests
         // Arrange
         var content = CreateMockContent();
         var culture = "en-US";
-        var validationService = CreateValidationServiceWithValidator();
-
-        var sut = new CustomValidationService(
-            validationService,
-            _cacheService,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
-            _loggerMock.Object);
+        var sut = CreateServiceWithValidator();
 
         // Act
         await sut.ExecuteValidationAsync(content, culture);
@@ -147,14 +154,7 @@ public sealed class CustomValidationServiceTests
     {
         // Arrange
         var content = CreateMockContent();
-        var validationService = CreateValidationServiceWithValidator();
-
-        var sut = new CustomValidationService(
-            validationService,
-            _cacheService,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
-            _loggerMock.Object);
+        var sut = CreateServiceWithValidator();
 
         // Act
         await sut.ExecuteValidationAsync(content, "da-DK");
@@ -165,47 +165,23 @@ public sealed class CustomValidationServiceTests
             Times.Never);
     }
 
-    #endregion
-
-    #region Multiple Cultures Tests
-
     [Test]
     public async Task ExecuteValidationAsync_DifferentCultures_CachesSeparately()
     {
         // Arrange
         var content = CreateMockContent();
         var totalCallCount = 0;
+        var sut = CreateServiceWithCountingValidator(() => totalCallCount++);
 
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        var validator = new CallCountingValidator(() => totalCallCount++);
-        services.AddSingleton(validator);
-        services.AddSingleton<IDocumentValidator>(sp => validator);
-
-        var sp = services.BuildServiceProvider();
-        var validationService = new CustomValidatorRegistry(
-            sp,
-            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
-
-        var sut = new CustomValidationService(
-            validationService,
-            _cacheService,
-            _variationContextAccessorMock.Object,
-            _languageServiceMock.Object,
-            _loggerMock.Object);
-
-        // Act - Validate different cultures
+        // Act - Validate different cultures twice each
+        await sut.ExecuteValidationAsync(content, "en-US");
+        await sut.ExecuteValidationAsync(content, "da-DK");
         await sut.ExecuteValidationAsync(content, "en-US");
         await sut.ExecuteValidationAsync(content, "da-DK");
 
-        // Call same cultures again
-        await sut.ExecuteValidationAsync(content, "en-US");
-        await sut.ExecuteValidationAsync(content, "da-DK");
-
-        // Assert - Should be called twice (once per culture), not four times
+        // Assert - Should be called twice total (once per culture)
         Assert.That(totalCallCount, Is.EqualTo(2),
-            "Validator should be called once per culture (2 total), proving separate cache keys");
+            "Validator should be called once per culture, proving separate cache keys");
     }
 
     #endregion
@@ -227,18 +203,59 @@ public sealed class CustomValidationServiceTests
         return contentMock.Object;
     }
 
-    private CustomValidatorRegistry CreateValidationServiceWithValidator()
+    private CustomValidationService CreateServiceWithValidator()
     {
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(TestValidator), NameOfType = "IPublishedContent" }
+        };
+
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<TestValidator>();
-        services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<TestValidator>());
 
         var sp = services.BuildServiceProvider();
+        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
 
-        return new CustomValidatorRegistry(
-            sp,
+        var registry = new CustomValidatorRegistry(
+            scopeFactory,
+            metadata,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
+
+        return new CustomValidationService(
+            registry,
+            _cacheService,
+            _variationContextAccessorMock.Object,
+            _languageServiceMock.Object,
+            _loggerMock.Object);
+    }
+
+    private CustomValidationService CreateServiceWithCountingValidator(Action onValidate)
+    {
+        var metadata = new List<ValidatorMetadata>
+        {
+            new() { ValidatorType = typeof(CallCountingValidator), NameOfType = "IPublishedContent" }
+        };
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var validator = new CallCountingValidator(onValidate);
+        services.AddSingleton(validator);
+
+        var sp = services.BuildServiceProvider();
+        var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+
+        var registry = new CustomValidatorRegistry(
+            scopeFactory,
+            metadata,
+            sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
+
+        return new CustomValidationService(
+            registry,
+            _cacheService,
+            _variationContextAccessorMock.Object,
+            _languageServiceMock.Object,
+            _loggerMock.Object);
     }
 
     #endregion
@@ -247,13 +264,22 @@ public sealed class CustomValidationServiceTests
 
     private class TestValidator : IDocumentValidator
     {
-        public string NameOfType => "IPublishedContent";
-
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
             {
                 new() { Message = "Test validation", Severity = ValidationSeverity.Info }
+            });
+        }
+    }
+
+    private class ErrorValidator : IDocumentValidator
+    {
+        public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
+        {
+            return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>
+            {
+                new() { Message = "Validation error", Severity = ValidationSeverity.Error }
             });
         }
     }
@@ -267,11 +293,9 @@ public sealed class CustomValidationServiceTests
             _onValidate = onValidate;
         }
 
-        public string NameOfType => "IPublishedContent";
-
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {
-            _onValidate(); // Increment counter
+            _onValidate();
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
         }
     }
