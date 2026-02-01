@@ -68,12 +68,7 @@ public static class ValidatorBuilderExtensions
         {
             services.AddSingleton<TValidator>();
             services.AddSingleton<IDocumentValidator>(sp => sp.GetRequiredService<TValidator>());
-
-            services.AddSingleton(new ValidatorMetadata
-            {
-                ValidatorType = typeof(TValidator),
-                NameOfType = typeof(TContent).Name
-            });
+            services.AddMetaData<TValidator, TContent>();
 
             return services;
         }
@@ -87,12 +82,7 @@ public static class ValidatorBuilderExtensions
         {
             services.Add(new ServiceDescriptor(typeof(TValidator), typeof(TValidator), lifetime));
             services.Add(new ServiceDescriptor(typeof(IDocumentValidator), sp => sp.GetRequiredService<TValidator>(), lifetime));
-
-            services.AddSingleton(new ValidatorMetadata
-            {
-                ValidatorType = typeof(TValidator),
-                NameOfType = typeof(TContent).Name
-            });
+            services.AddMetaData<TValidator, TContent>();
 
             return services;
         }
