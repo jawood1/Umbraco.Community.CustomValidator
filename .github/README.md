@@ -118,7 +118,7 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        builder.AddDocumentValidator<ArticleValidator>();
+        builder.AddDocumentValidator<ArticleValidator, Article>();
     }
 }
 ```
@@ -130,7 +130,7 @@ public class ValidationComposer : IComposer
     public void Compose(IUmbracoBuilder builder)
     {
         // Use scoped when validator needs IContentService, DbContext, etc.
-        builder.AddScopedDocumentValidator<ProductValidator>();
+        builder.AddScopedDocumentValidator<ProductValidator. Product>();
     }
 }
 ```
@@ -138,10 +138,10 @@ public class ValidationComposer : IComposer
 #### Direct Service Collection Registration
 ```csharp
 // Singleton
-builder.Services.AddDocumentValidator<ArticleValidator>();
+builder.Services.AddDocumentValidator<ArticleValidator, Article>();
 
 // Scoped
-builder.Services.AddScopedDocumentValidator<ProductValidator>();
+builder.Services.AddScopedDocumentValidator<ProductValidator, Product>();
 ```
 
 **When to use each:**
