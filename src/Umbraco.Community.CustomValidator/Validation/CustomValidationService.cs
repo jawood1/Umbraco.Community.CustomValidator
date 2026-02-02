@@ -44,7 +44,7 @@ public sealed class CustomValidationService(
         }
 
         return await validationCacheService.GetOrSetAsync(
-            content.Key, culture,
+            content.Id, culture,
             async _ =>
             {
                 var currentCulture = await GetCurrentCultureAsync(culture, content);

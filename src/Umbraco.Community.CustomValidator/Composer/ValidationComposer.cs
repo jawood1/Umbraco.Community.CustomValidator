@@ -21,9 +21,12 @@ internal sealed class ValidationComposer : IComposer
         builder.Services.AddSingleton<CustomValidatorRegistry>();
         builder.Services.AddSingleton<CustomValidationService>();
         builder.Services.AddSingleton<CustomValidationCacheService>();
+        builder.Services.AddSingleton<MediaDocumentRelationCache>();
 
         //notifications
         builder.AddNotificationAsyncHandler<ContentSavingNotification, ContentValidationNotificationHandler>();
         builder.AddNotificationAsyncHandler<ContentPublishingNotification, ContentValidationNotificationHandler>();
+        builder.AddNotificationAsyncHandler<MediaSavedNotification, MediaChangeNotificationHandler>();
+        builder.AddNotificationAsyncHandler<MediaDeletedNotification, MediaChangeNotificationHandler>();
     }
 }

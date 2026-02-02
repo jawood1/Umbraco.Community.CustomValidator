@@ -19,7 +19,7 @@ public sealed class CustomValidationCacheService(
     /// Gets or sets a cached validation result.
     /// </summary>
     public async Task<ValidationResponse> GetOrSetAsync(
-        Guid documentId, 
+        int documentId, 
         string? culture, 
         Func<CancellationToken, ValueTask<ValidationResponse>> factory,
         CancellationToken cancellationToken = default)
@@ -55,7 +55,7 @@ public sealed class CustomValidationCacheService(
     /// <summary>
     /// Clears cached validation result for a specific document and culture.
     /// </summary>
-    public async Task ClearForDocumentCultureAsync(Guid documentId, string? culture, CancellationToken cancellationToken = default)
+    public async Task ClearForDocumentCultureAsync(int documentId, string? culture, CancellationToken cancellationToken = default)
     {
         var tag = GetCultureTag(documentId, culture);
         await cache.RemoveByTagAsync(tag, cancellationToken);
@@ -67,7 +67,7 @@ public sealed class CustomValidationCacheService(
     /// <summary>
     /// Clears all cached validation results for a document (all cultures).
     /// </summary>
-    public async Task ClearForDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
+    public async Task ClearForDocumentAsync(int documentId, CancellationToken cancellationToken = default)
     {
         var tag = GetDocumentTag(documentId);
         await cache.RemoveByTagAsync(tag, cancellationToken);
@@ -84,14 +84,12 @@ public sealed class CustomValidationCacheService(
         logger.LogInformation("Cleared all validation cache");
     }
 
-    #region Private Methods
-
-    private static string GetCacheKey(Guid documentId, string? culture)
+    private static string GetCacheKey(int documentId, string? culture)
     {
         return $"{CacheKeyPrefix}_{documentId}_{culture ?? "invariant"}";
     }
 
-    private static string[] GetCacheTags(Guid documentId, string? culture)
+    private static string[] GetCacheTags(int documentId, string? culture)
     {
         return
         [
@@ -101,11 +99,9 @@ public sealed class CustomValidationCacheService(
         ];
     }
 
-    private static string GetDocumentTag(Guid documentId) 
+    private static string GetDocumentTag(int documentId) 
         => $"{CacheKeyPrefix}:doc:{documentId}";
 
-    private static string GetCultureTag(Guid documentId, string? culture) 
+    private static string GetCultureTag(int documentId, string? culture) 
         => $"{CacheKeyPrefix}:doc:{documentId}:culture:{culture ?? "invariant"}";
-
-    #endregion
 }

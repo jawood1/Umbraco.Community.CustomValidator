@@ -39,7 +39,7 @@ public sealed class ContentValidationNotificationHandler(
                 {
                     logger.LogDebug("Clearing validation cache for document {DocumentId} ({Name}), culture: {Culture}",
                         entity.Key, entity.Name, culture);
-                    await cacheService.ClearForDocumentCultureAsync(entity.Key, culture, cancellationToken);
+                    await cacheService.ClearForDocumentCultureAsync(entity.Id, culture, cancellationToken);
                 }
             }
             else
@@ -47,7 +47,7 @@ public sealed class ContentValidationNotificationHandler(
                 logger.LogDebug("Clearing validation cache for invariant document {DocumentId} ({Name})",
                     entity.Key, entity.Name);
 
-                await cacheService.ClearForDocumentCultureAsync(entity.Key, null, cancellationToken);
+                await cacheService.ClearForDocumentCultureAsync(entity.Id, null, cancellationToken);
             }
         }
     }
@@ -152,4 +152,6 @@ public sealed class ContentValidationNotificationHandler(
     {
         return response.Messages?.Count(m => IsError(m.Severity)) ?? 0;
     }
+
+    
 }
