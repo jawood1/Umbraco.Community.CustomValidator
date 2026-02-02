@@ -40,7 +40,7 @@ Install-Package Umbraco.Community.CustomValidator
 
 ### Requirements
 
-- Umbraco CMS 17.0+
+- Umbraco CMS 17.1+
 - .NET 10.0+
 
 ## Quick Start
