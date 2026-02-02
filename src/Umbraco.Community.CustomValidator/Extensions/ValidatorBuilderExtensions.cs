@@ -14,7 +14,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator as a singleton with explicit content type.
         /// </summary>
         public IUmbracoBuilder AddDocumentValidator<TValidator, TContent>()
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             builder.Services.AddDocumentValidator<TValidator, TContent>();
@@ -26,7 +26,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator with specified lifetime and explicit content type.
         /// </summary>
         public IUmbracoBuilder AddDocumentValidator<TValidator, TContent>(ServiceLifetime lifetime)
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             builder.Services.AddDocumentValidator<TValidator, TContent>(lifetime);
@@ -37,7 +37,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator as scoped with explicit content type.
         /// </summary>
         public IUmbracoBuilder AddScopedDocumentValidator<TValidator, TContent>()
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             builder.Services.AddScopedDocumentValidator<TValidator, TContent>();
@@ -48,7 +48,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator as transient with explicit content type.
         /// </summary>
         public IUmbracoBuilder AddTransientDocumentValidator<TValidator, TContent>()
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             builder.Services.AddTransientDocumentValidator<TValidator, TContent>();
@@ -63,7 +63,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator as a singleton with explicit content type.
         /// </summary>
         public IServiceCollection AddDocumentValidator<TValidator, TContent>()
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             services.AddSingleton<TValidator>();
@@ -77,7 +77,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator with specified lifetime and explicit content type.
         /// </summary>
         public IServiceCollection AddDocumentValidator<TValidator, TContent>(ServiceLifetime lifetime)
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             services.Add(new ServiceDescriptor(typeof(TValidator), typeof(TValidator), lifetime));
@@ -91,7 +91,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator as scoped with explicit content type.
         /// </summary>
         public IServiceCollection AddScopedDocumentValidator<TValidator, TContent>()
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             services.AddScoped<TValidator>();
@@ -105,7 +105,7 @@ public static class ValidatorBuilderExtensions
         /// Registers a document validator as transient with explicit content type.
         /// </summary>
         public IServiceCollection AddTransientDocumentValidator<TValidator, TContent>()
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             services.AddTransient<TValidator>();
@@ -116,7 +116,7 @@ public static class ValidatorBuilderExtensions
         }
 
         private void AddMetaData<TValidator, TContent>()
-            where TValidator : class, IDocumentValidator<TContent>, IDocumentValidator
+            where TValidator : class, IDocumentValidator<TContent>
             where TContent : class, IPublishedContent
         {
             services.AddSingleton(new ValidatorMetadata

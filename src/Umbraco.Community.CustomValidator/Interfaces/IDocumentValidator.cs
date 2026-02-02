@@ -3,9 +3,10 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Interfaces;
 
-public interface IDocumentValidator<T> where T : class, IPublishedContent
+public interface IDocumentValidator<TContent> : IDocumentValidator
+    where TContent : class, IPublishedContent
 {
-    Task<IEnumerable<ValidationMessage>> ValidateAsync(T content);
+    Task<IEnumerable<ValidationMessage>> ValidateAsync(TContent content);
 }
 
 public interface IDocumentValidator
