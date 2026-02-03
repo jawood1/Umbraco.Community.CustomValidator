@@ -44,7 +44,6 @@ public sealed class ContentValidationNotificationHandlerTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddHybridCache();
-        services.AddMemoryCache();
 
         _serviceProvider = services.BuildServiceProvider();
 
@@ -95,13 +94,13 @@ public sealed class ContentValidationNotificationHandlerTests
     [TearDown]
     public void TearDown()
     {
-        _serviceProvider?.Dispose();
+        _serviceProvider.Dispose();
     }
 
     #region ContentSavingNotification Tests
 
     [Test]
-    public async Task HandleAsync_ContentSaving_InvariantContent_ClearsCacheWithNullCulture()
+    public async Task HandleAsync_ContentSaving_ClearsCacheForDocument()
     {
         // Arrange
         var documentId = Guid.NewGuid();
@@ -110,8 +109,7 @@ public sealed class ContentValidationNotificationHandlerTests
         // Pre-populate cache
         await _validationCacheService.GetOrSetAsync(
             documentId,
-            null,
-            async (ct) => CreateValidationResponse(documentId),
+            null, (ct) => ValueTask.FromResult(CreateValidationResponse(documentId)),
             CancellationToken.None);
 
         var notification = new ContentSavingNotification(entity, new EventMessages());

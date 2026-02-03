@@ -23,32 +23,13 @@ public sealed class ContentValidationNotificationHandler(
 {
 
     /// <summary>
-    /// Clears the validation cache for affected documents and cultures.
+    /// Clears the validation cache for affected documents.
     /// </summary>
     public async Task HandleAsync(ContentSavingNotification notification, CancellationToken cancellationToken)
     {
         foreach (var entity in notification.SavedEntities)
         {
-            var savingCultures = entity.AvailableCultures
-                .Where(culture => notification.IsSavingCulture(entity, culture))
-                .ToList();
-
-            if (savingCultures.Count > 0)
-            {
-                foreach (var culture in savingCultures)
-                {
-                    logger.LogDebug("Clearing validation cache for document {DocumentId} ({Name}), culture: {Culture}",
-                        entity.Key, entity.Name, culture);
-                    await cacheService.ClearForDocumentCultureAsync(entity.Key, culture, cancellationToken);
-                }
-            }
-            else
-            {
-                logger.LogDebug("Clearing validation cache for invariant document {DocumentId} ({Name})",
-                    entity.Key, entity.Name);
-
-                await cacheService.ClearForDocumentCultureAsync(entity.Key, null, cancellationToken);
-            }
+            await cacheService.ClearForDocumentAsync(entity.Key, cancellationToken);
         }
     }
 
