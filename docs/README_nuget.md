@@ -62,7 +62,7 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        builder.AddDocumentValidator<ArticleValidator>();
+        builder.AddDocumentValidator<ArticleValidator, Article>();
     }
 }
 ```

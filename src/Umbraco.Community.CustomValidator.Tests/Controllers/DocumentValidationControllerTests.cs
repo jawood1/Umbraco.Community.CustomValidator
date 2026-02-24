@@ -47,9 +47,12 @@ public sealed class DocumentValidationControllerTests
 
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup([], logger.Object);
+
         var customValidatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            new List<ValidatorMetadata>(),
+            lookup,
             _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var hybridCache = _serviceProvider.GetRequiredService<HybridCache>();
@@ -304,8 +307,11 @@ public sealed class DocumentValidationControllerTests
     {
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator), NameOfType = "IPublishedContent" }
+            new() { ValidatorType = typeof(TestValidator), ContentType = typeof(IPublishedContent) }
         };
+
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -317,7 +323,7 @@ public sealed class DocumentValidationControllerTests
 
         var validatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            metadata,
+            lookup,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var options = new CustomValidatorOptions { CacheExpirationMinutes = 30 };
@@ -345,8 +351,11 @@ public sealed class DocumentValidationControllerTests
 
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TrackingValidator), NameOfType = "IPublishedContent" }
+            new() { ValidatorType = typeof(TrackingValidator), ContentType = typeof(IPublishedContent) }
         };
+
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -366,7 +375,7 @@ public sealed class DocumentValidationControllerTests
 
         var validatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            metadata,
+            lookup,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var cacheService = new CustomValidationCacheService(

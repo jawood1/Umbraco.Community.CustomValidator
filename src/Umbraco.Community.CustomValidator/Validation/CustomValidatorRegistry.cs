@@ -1,5 +1,4 @@
-using System.Collections.Concurrent;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Community.CustomValidator.Enums;
@@ -8,45 +7,38 @@ using Umbraco.Community.CustomValidator.Models;
 
 namespace Umbraco.Community.CustomValidator.Validation;
 
-/// <summary>
-/// Registry for discovering and executing document validators.
-/// </summary>
-public sealed class CustomValidatorRegistry(
-    IServiceScopeFactory serviceScopeFactory,
-    IEnumerable<ValidatorMetadata> metadata,
-    ILogger<CustomValidatorRegistry> logger)
+public sealed class CustomValidatorRegistry
 {
-    private readonly ConcurrentDictionary<Type, List<Type>> _validatorTypeCache = new();
+    private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly ValidatorLookup _validators;
+    private readonly ILogger<CustomValidatorRegistry> _logger;
 
-    /// <summary>
-    /// Clears the validator type cache.
-    /// Metadata cannot be cleared as it's injected via DI.
-    /// </summary>
-    public void ClearValidatorCache()
+    public CustomValidatorRegistry(
+        IServiceScopeFactory serviceScopeFactory,
+        ValidatorLookup validators,
+        ILogger<CustomValidatorRegistry> logger)
     {
-        _validatorTypeCache.Clear();
-        logger.LogDebug("Validator type cache cleared");
+        _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
+        _validators = validators ?? throw new ArgumentNullException(nameof(validators));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _validators = validators;
     }
 
-    /// <summary>
-    /// Validates content by discovering and executing all matching validators.
-    /// </summary>
     public async Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
     {
-        var validatorTypes = GetOrAddValidatorTypesForContentType(content.GetType());
+        var validatorTypes = _validators.GetValidatorsFor(content.GetType());
         var messages = new List<ValidationMessage>();
 
-        using var scope = serviceScopeFactory.CreateScope();
+        using var scope = _serviceScopeFactory.CreateScope();
         var scopedProvider = scope.ServiceProvider;
 
         foreach (var validatorType in validatorTypes)
         {
             try
             {
-                // Resolve validator from scoped provider
                 if (scopedProvider.GetRequiredService(validatorType) is not IDocumentValidator validator)
                 {
-                    logger.LogWarning("Could not resolve validator {ValidatorType}", validatorType.Name);
+                    _logger.LogWarning("Could not resolve validator {ValidatorType}", validatorType.Name);
                     continue;
                 }
 
@@ -54,7 +46,7 @@ public sealed class CustomValidatorRegistry(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Error executing validator {ValidatorType} for document {DocumentId}",
+                _logger.LogError(ex, "Error executing validator {ValidatorType} for document {DocumentId}",
                     validatorType.Name, content.Id);
 
                 messages.Add(new ValidationMessage
@@ -68,48 +60,9 @@ public sealed class CustomValidatorRegistry(
         return messages;
     }
 
-    /// <summary>
-    /// Checks if a validator exists for the given content type.
-    /// </summary>
     public bool HasValidator<T>(T publishedContent) where T : class, IPublishedContent
     {
-        var validatorTypes = GetOrAddValidatorTypesForContentType(publishedContent.GetType());
+        var validatorTypes = _validators.GetValidatorsFor(publishedContent.GetType());
         return validatorTypes.Count > 0;
-    }
-
-    /// <summary>
-    /// Gets or caches which validator types apply to a given content type.
-    /// </summary>
-    private List<Type> GetOrAddValidatorTypesForContentType(Type contentType)
-    {
-        return _validatorTypeCache.GetOrAdd(contentType, type =>
-        {
-            var matchingValidatorTypes = new List<Type>();
-
-            foreach (var metadata1 in metadata)
-            {
-                // Check if validator matches content type by name
-                if (metadata1.NameOfType == type.Name)
-                {
-                    matchingValidatorTypes.Add(metadata1.ValidatorType);
-                    continue;
-                }
-
-                // Check interfaces
-                foreach (var iface in type.GetInterfaces())
-                {
-                    if (metadata1.NameOfType == iface.Name)
-                    {
-                        matchingValidatorTypes.Add(metadata1.ValidatorType);
-                        break;
-                    }
-                }
-            }
-
-            logger.LogDebug("Content type {ContentType} matched {ValidatorCount} validator(s)",
-                type.Name, matchingValidatorTypes.Count);
-
-            return matchingValidatorTypes;
-        });
     }
 }

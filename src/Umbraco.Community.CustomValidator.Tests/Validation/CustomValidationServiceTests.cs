@@ -46,11 +46,14 @@ public sealed class CustomValidationServiceTests
         _optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         _optionsMock.Setup(x => x.Value).Returns(options);
 
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup([], logger.Object);
+
         // Create registry with empty metadata (no validators by default)
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
         _validatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            new List<ValidatorMetadata>(),
+            lookup,
             _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         _cacheService = new CustomValidationCacheService(
@@ -207,8 +210,11 @@ public sealed class CustomValidationServiceTests
     {
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator), NameOfType = "IPublishedContent" }
+            new() { ValidatorType = typeof(TestValidator), ContentType = typeof(IPublishedContent) }
         };
+
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -217,9 +223,11 @@ public sealed class CustomValidationServiceTests
         var sp = services.BuildServiceProvider();
         var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
 
+
+
         var registry = new CustomValidatorRegistry(
             scopeFactory,
-            metadata,
+            lookup,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         return new CustomValidationService(
@@ -234,8 +242,11 @@ public sealed class CustomValidationServiceTests
     {
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(CallCountingValidator), NameOfType = "IPublishedContent" }
+            new() { ValidatorType = typeof(CallCountingValidator), ContentType = typeof(IPublishedContent) }
         };
+
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -247,7 +258,7 @@ public sealed class CustomValidationServiceTests
 
         var registry = new CustomValidatorRegistry(
             scopeFactory,
-            metadata,
+            lookup,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         return new CustomValidationService(

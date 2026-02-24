@@ -40,10 +40,13 @@ public sealed class CustomValidatorRegistryTests
         _serviceProvider = _services.BuildServiceProvider();
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup([], logger.Object);
+
         // Act
         var registry = new CustomValidatorRegistry(
             scopeFactory,
-            new List<ValidatorMetadata>(),
+            lookup,
             _loggerMock.Object);
 
         // Assert
@@ -75,7 +78,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IArticle" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IArticle) }
         };
 
         RegisterValidator<TestValidator1>();
@@ -101,7 +104,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IHomePage) }
         };
 
         RegisterValidator<TestValidator1>();
@@ -124,8 +127,8 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" },
-            new() { ValidatorType = typeof(TestValidator2), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IHomePage) },
+            new() { ValidatorType = typeof(TestValidator2), ContentType = typeof(IHomePage)}
         };
 
         RegisterValidator<TestValidator1>();
@@ -150,7 +153,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IBasePage" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IBasePage) }
         };
 
         RegisterValidator<TestValidator1>();
@@ -166,36 +169,6 @@ public sealed class CustomValidatorRegistryTests
         Assert.That(result.Count(), Is.EqualTo(1));
     }
 
-    [Test]
-    public async Task ValidateAsync_CachesTypeMapping()
-    {
-        // Arrange
-        var metadata = new List<ValidatorMetadata>
-        {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
-        };
-
-        RegisterValidator<TestValidator1>();
-        _serviceProvider = _services.BuildServiceProvider();
-        _sut = CreateRegistry(metadata);
-
-        var content = CreateMockContent<IHomePage>();
-
-        // Act - Call twice
-        await _sut.ValidateAsync(content);
-        await _sut.ValidateAsync(content);
-
-        // Assert - Should log type matching only once (cached)
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Debug,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("matched")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
-    }
-
     #endregion
 
     #region Service Lifetime Tests
@@ -207,7 +180,7 @@ public sealed class CustomValidatorRegistryTests
         var callCount = 0;
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(CountingValidator), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(CountingValidator), ContentType = typeof(IHomePage) }
         };
 
         _services.AddSingleton(new CountingValidator(() => callCount++));
@@ -231,7 +204,7 @@ public sealed class CustomValidatorRegistryTests
         var instanceIds = new List<Guid>();
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(ScopedTrackingValidator), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(ScopedTrackingValidator), ContentType = typeof(IHomePage) }
         };
 
         _services.AddScoped(sp => new ScopedTrackingValidator(instanceIds));
@@ -257,7 +230,7 @@ public sealed class CustomValidatorRegistryTests
         var instanceIds = new List<Guid>();
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TransientTrackingValidator), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(TransientTrackingValidator), ContentType = typeof(IHomePage) }
         };
 
         _services.AddTransient(sp => new TransientTrackingValidator(instanceIds));
@@ -285,7 +258,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(ThrowingValidator), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(ThrowingValidator), ContentType = typeof(IHomePage) }
         };
 
         RegisterValidator<ThrowingValidator>();
@@ -309,7 +282,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(ThrowingValidator), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(ThrowingValidator), ContentType = typeof(IHomePage) }
         };
 
         RegisterValidator<ThrowingValidator>();
@@ -357,7 +330,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IHomePage) }
         };
 
         RegisterValidator<TestValidator1>();
@@ -379,7 +352,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IArticle" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IArticle) }
         };
 
         RegisterValidator<TestValidator1>();
@@ -401,7 +374,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IBasePage" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IBasePage) }
         };
 
         RegisterValidator<TestValidator1>();
@@ -419,43 +392,6 @@ public sealed class CustomValidatorRegistryTests
 
     #endregion
 
-    #region ClearValidatorCache Tests
-
-    [Test]
-    public void ClearValidatorCache_ClearsTypeCache()
-    {
-        // Arrange
-        var metadata = new List<ValidatorMetadata>
-        {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
-        };
-
-        RegisterValidator<TestValidator1>();
-        _serviceProvider = _services.BuildServiceProvider();
-        _sut = CreateRegistry(metadata);
-
-        var content = CreateMockContent<IHomePage>();
-
-        // Prime the cache
-        _sut.HasValidator(content);
-
-        // Act
-        _sut.ClearValidatorCache();
-        _sut.HasValidator(content); // Should rebuild cache
-
-        // Assert - Should log type matching twice (once before clear, once after)
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Debug,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("matched")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Exactly(2));
-    }
-
-    #endregion
-
     #region Concurrent Access Tests
 
     [Test]
@@ -464,7 +400,7 @@ public sealed class CustomValidatorRegistryTests
         // Arrange
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(TestValidator1), NameOfType = "IHomePage" }
+            new() { ValidatorType = typeof(TestValidator1), ContentType = typeof(IHomePage) }
         };
 
         RegisterValidator<TestValidator1>();
@@ -489,7 +425,9 @@ public sealed class CustomValidatorRegistryTests
     private CustomValidatorRegistry CreateRegistry(List<ValidatorMetadata> metadata)
     {
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
-        return new CustomValidatorRegistry(scopeFactory, metadata, _loggerMock.Object);
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
+        return new CustomValidatorRegistry(scopeFactory, lookup, _loggerMock.Object);
     }
 
     private void RegisterValidator<T>() where T : class, IDocumentValidator

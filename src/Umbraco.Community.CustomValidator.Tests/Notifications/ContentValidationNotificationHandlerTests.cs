@@ -44,7 +44,6 @@ public sealed class ContentValidationNotificationHandlerTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddHybridCache();
-        services.AddMemoryCache();
 
         _serviceProvider = services.BuildServiceProvider();
 
@@ -53,11 +52,15 @@ public sealed class ContentValidationNotificationHandlerTests
         _optionsMock = new Mock<IOptions<CustomValidatorOptions>>();
         _optionsMock.Setup(x => x.Value).Returns(_options);
 
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+
+        var lookup = new ValidatorLookup(new List<ValidatorMetadata>(), logger.Object);
+
         // Create registry with empty metadata (no validators)
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
         var validatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            new List<ValidatorMetadata>(),
+            lookup,
             _serviceProvider.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         _validationCacheService = new CustomValidationCacheService(
@@ -91,13 +94,13 @@ public sealed class ContentValidationNotificationHandlerTests
     [TearDown]
     public void TearDown()
     {
-        _serviceProvider?.Dispose();
+        _serviceProvider.Dispose();
     }
 
     #region ContentSavingNotification Tests
 
     [Test]
-    public async Task HandleAsync_ContentSaving_InvariantContent_ClearsCacheWithNullCulture()
+    public async Task HandleAsync_ContentSaving_ClearsCacheForDocument()
     {
         // Arrange
         var documentId = Guid.NewGuid();
@@ -106,8 +109,7 @@ public sealed class ContentValidationNotificationHandlerTests
         // Pre-populate cache
         await _validationCacheService.GetOrSetAsync(
             documentId,
-            null,
-            async (ct) => CreateValidationResponse(documentId),
+            null, (ct) => ValueTask.FromResult(CreateValidationResponse(documentId)),
             CancellationToken.None);
 
         var notification = new ContentSavingNotification(entity, new EventMessages());
@@ -474,8 +476,11 @@ public sealed class ContentValidationNotificationHandlerTests
     {
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(ErrorValidator), NameOfType = "IPublishedContent" }
+            new() { ValidatorType = typeof(ErrorValidator), ContentType = typeof(IPublishedContent) }
         };
+
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -488,7 +493,7 @@ public sealed class ContentValidationNotificationHandlerTests
 
         var validatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            metadata,
+            lookup,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var cacheService = new CustomValidationCacheService(
@@ -511,8 +516,11 @@ public sealed class ContentValidationNotificationHandlerTests
     {
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(WarningValidator), NameOfType = "IPublishedContent" }
+            new() { ValidatorType = typeof(WarningValidator), ContentType = typeof(IPublishedContent) }
         };
+
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -525,7 +533,7 @@ public sealed class ContentValidationNotificationHandlerTests
 
         var validatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            metadata,
+            lookup,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var cacheService = new CustomValidationCacheService(
@@ -548,8 +556,11 @@ public sealed class ContentValidationNotificationHandlerTests
     {
         var metadata = new List<ValidatorMetadata>
         {
-            new() { ValidatorType = typeof(ConditionalErrorValidator), NameOfType = "IPublishedContent" }
+            new() { ValidatorType = typeof(ConditionalErrorValidator), ContentType = typeof(IPublishedContent) }
         };
+
+        var logger = new Mock<ILogger<ValidatorLookup>>();
+        var lookup = new ValidatorLookup(metadata, logger.Object);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -564,7 +575,7 @@ public sealed class ContentValidationNotificationHandlerTests
 
         var validatorRegistry = new CustomValidatorRegistry(
             scopeFactory,
-            metadata,
+            lookup,
             sp.GetRequiredService<ILogger<CustomValidatorRegistry>>());
 
         var cacheService = new CustomValidationCacheService(
@@ -629,8 +640,6 @@ public sealed class ContentValidationNotificationHandlerTests
             _errorDocId = errorDocId;
             _onDoc2Validate = onDoc2Validate;
         }
-
-        public string NameOfType => "IPublishedContent";
 
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
         {

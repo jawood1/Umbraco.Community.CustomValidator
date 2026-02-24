@@ -63,7 +63,7 @@ public class ValidatorBuilderExtensionsTests
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().ToList();
         Assert.That(metadata, Has.Count.EqualTo(1));
         Assert.That(metadata[0].ValidatorType, Is.EqualTo(typeof(TestValidator)));
-        Assert.That(metadata[0].NameOfType, Is.EqualTo("IHomePage"));
+        Assert.That(metadata[0].ContentType, Is.EqualTo(typeof(IHomePage)));
     }
 
     [Test]
@@ -156,7 +156,7 @@ public class ValidatorBuilderExtensionsTests
         // Assert
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().ToList();
         Assert.That(metadata, Has.Count.EqualTo(1));
-        Assert.That(metadata[0].NameOfType, Is.EqualTo("IHomePage"));
+        Assert.That(metadata[0].ContentType, Is.EqualTo(typeof(IHomePage)));
     }
 
     #endregion
@@ -197,7 +197,7 @@ public class ValidatorBuilderExtensionsTests
         // Assert
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
         Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
-        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+        Assert.That(metadata.ContentType, Is.EqualTo(typeof(IHomePage)));
     }
 
     [Test]
@@ -238,7 +238,7 @@ public class ValidatorBuilderExtensionsTests
         // Assert
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
         Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
-        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+        Assert.That(metadata.ContentType, Is.EqualTo(typeof(IHomePage)));
     }
 
     [Test]
@@ -291,7 +291,7 @@ public class ValidatorBuilderExtensionsTests
         // Assert
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
         Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
-        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+        Assert.That(metadata.ContentType, Is.EqualTo(typeof(IHomePage)));
     }
 
     [Test]
@@ -367,7 +367,7 @@ public class ValidatorBuilderExtensionsTests
 
         // Assert
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
-        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+        Assert.That(metadata.ContentType, Is.EqualTo(typeof(IHomePage)));
     }
 
     [Test]
@@ -407,7 +407,7 @@ public class ValidatorBuilderExtensionsTests
 
         // Assert
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
-        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
+        Assert.That(metadata.ContentType, Is.EqualTo(typeof(IHomePage)));
     }
 
     [Test]
@@ -450,8 +450,8 @@ public class ValidatorBuilderExtensionsTests
         // Assert
         var metadata = serviceProvider.GetServices<ValidatorMetadata>().ToList();
         Assert.That(metadata, Has.Count.EqualTo(2));
-        Assert.That(metadata.Any(m => m.NameOfType == "IHomePage"), Is.True);
-        Assert.That(metadata.Any(m => m.NameOfType == "IArticle"), Is.True);
+        Assert.That(metadata.Any(m => m.ContentType == typeof(IHomePage)), Is.True);
+        Assert.That(metadata.Any(m => m.ContentType == typeof(IArticle)), Is.True);
     }
 
     [Test]
@@ -504,41 +504,10 @@ public class ValidatorBuilderExtensionsTests
 
     #endregion
 
-    #region Metadata Correctness Tests
-
-    [Test]
-    public void AddDocumentValidator_MetadataNameOfType_MatchesGenericParameter()
-    {
-        // Act
-        _services.AddDocumentValidator<TestValidator, IHomePage>();
-        var serviceProvider = _services.BuildServiceProvider();
-
-        // Assert
-        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
-        Assert.That(metadata.NameOfType, Is.EqualTo(typeof(IHomePage).Name));
-        Assert.That(metadata.NameOfType, Is.EqualTo("IHomePage"));
-    }
-
-    [Test]
-    public void AddDocumentValidator_MetadataValidatorType_MatchesValidatorType()
-    {
-        // Act
-        _services.AddDocumentValidator<TestValidator, IHomePage>();
-        var serviceProvider = _services.BuildServiceProvider();
-
-        // Assert
-        var metadata = serviceProvider.GetServices<ValidatorMetadata>().Single();
-        Assert.That(metadata.ValidatorType, Is.EqualTo(typeof(TestValidator)));
-    }
-
-    #endregion
-
     #region Test Validators
 
     private class TestValidator : IDocumentValidator<IHomePage>, IDocumentValidator
     {
-        public string NameOfType => "IHomePage";
-
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IHomePage content)
         {
             return Task.FromResult<IEnumerable<ValidationMessage>>(new List<ValidationMessage>());
@@ -552,7 +521,6 @@ public class ValidatorBuilderExtensionsTests
 
     private class TestValidator2 : IDocumentValidator<IArticle>, IDocumentValidator
     {
-        public string NameOfType => "IArticle";
 
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IArticle content)
         {
@@ -567,7 +535,6 @@ public class ValidatorBuilderExtensionsTests
 
     private class TestValidator3 : IDocumentValidator<IProduct>, IDocumentValidator
     {
-        public string NameOfType => "IProduct";
 
         public Task<IEnumerable<ValidationMessage>> ValidateAsync(IProduct content)
         {

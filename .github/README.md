@@ -4,7 +4,7 @@
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.CustomValidator?color=0273B3)](https://www.nuget.org/packages/Umbraco.Community.CustomValidator)
 [![GitHub license](https://img.shields.io/github/license/jawood1/Umbraco.Community.CustomValidator?color=8AB803)](../LICENSE)
 
-This package is a validation framework for Umbraco backoffice that provides real-time content validation for complex business logic. The package displays validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.
+Custom Validator is a validation framework for Umbraco backoffice that provides real-time content validation for complex business logic. Custom Validator displays validation results directly in the Umbraco backoffice with support for multi-culture content, severity levels (Error, Warning, Info), and automatic publish blocking when errors are present.
 
 ## Features
 
@@ -40,7 +40,7 @@ Install-Package Umbraco.Community.CustomValidator
 
 ### Requirements
 
-- Umbraco CMS 17.0+
+- Umbraco CMS 17.1+
 - .NET 10.0+
 
 ## Quick Start
@@ -118,7 +118,7 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        builder.AddDocumentValidator<ArticleValidator>();
+        builder.AddDocumentValidator<ArticleValidator, Article>();
     }
 }
 ```
@@ -130,7 +130,7 @@ public class ValidationComposer : IComposer
     public void Compose(IUmbracoBuilder builder)
     {
         // Use scoped when validator needs IContentService, DbContext, etc.
-        builder.AddScopedDocumentValidator<ProductValidator>();
+        builder.AddScopedDocumentValidator<ProductValidator. Product>();
     }
 }
 ```
@@ -138,10 +138,10 @@ public class ValidationComposer : IComposer
 #### Direct Service Collection Registration
 ```csharp
 // Singleton
-builder.Services.AddDocumentValidator<ArticleValidator>();
+builder.Services.AddDocumentValidator<ArticleValidator, Article>();
 
 // Scoped
-builder.Services.AddScopedDocumentValidator<ProductValidator>();
+builder.Services.AddScopedDocumentValidator<ProductValidator, Product>();
 ```
 
 **When to use each:**

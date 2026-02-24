@@ -7,5 +7,5 @@ public sealed record ValidatorMetadata
 {
     public required Type ValidatorType { get; init; }
 
-    public required string NameOfType { get; init; }
+    public required Type ContentType { get; init; }
 }
