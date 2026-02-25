@@ -23,6 +23,7 @@ internal sealed class ValidationComposer : IComposer
         builder.Services.AddSingleton<CustomValidationService>();
         builder.Services.AddSingleton<CustomValidationCacheService>();
         builder.Services.AddSingleton<CustomValidationStatusCache>();
+        builder.Services.AddSingleton<CustomValidationFlagStatusResolver>();
 
         //flags
         builder.FlagProviders()

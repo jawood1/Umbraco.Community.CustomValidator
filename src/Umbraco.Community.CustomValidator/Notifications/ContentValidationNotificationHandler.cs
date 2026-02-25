@@ -4,13 +4,13 @@ using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Community.CustomValidator.Extensions;
 using Umbraco.Community.CustomValidator.Services;
 using Umbraco.Community.CustomValidator.Validation;
 using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Notifications;
 
-using Umbraco.Community.CustomValidator.Extensions;
 
 public sealed class ContentValidationNotificationHandler(
     IUmbracoContextAccessor umbracoContextAccessor,
@@ -31,6 +31,7 @@ public sealed class ContentValidationNotificationHandler(
         foreach (var entity in notification.SavedEntities)
         {
             await cacheService.ClearForDocumentAsync(entity.Key, cancellationToken);
+            statusCache.ClearForDocument(entity.Key);
         }
     }
 

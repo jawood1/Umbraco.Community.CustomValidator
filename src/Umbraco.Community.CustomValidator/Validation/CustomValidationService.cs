@@ -34,12 +34,14 @@ public sealed class CustomValidationService(
         string? culture,
         CancellationToken cancellationToken = default)
     {
+        var currentCulture = await GetCurrentCultureAsync(culture, content);
+
         if (!validatorRegistry.HasValidator(content))
         {
             logger.LogDebug("No validator configured for document {DocumentId}, content type: {ContentType}",
                 content.Key, content.ContentType.Alias);
 
-            statusCache.SetStatus(content.Key, ValidationStatus.Unknown);
+            statusCache.SetStatus(content.Key, ValidationStatus.Unknown, currentCulture);
 
             return new ValidationResponse
             {
@@ -49,12 +51,10 @@ public sealed class CustomValidationService(
             };
         }
 
-        return await validationCache.GetOrSetAsync(
+        var response = await validationCache.GetOrSetAsync(
             content.Key, culture,
             async _ =>
             {
-                var currentCulture = await GetCurrentCultureAsync(culture, content);
-
                 if (!string.IsNullOrEmpty(currentCulture))
                 {
                     variationContextAccessor.VariationContext = new VariationContext(currentCulture);
@@ -70,10 +70,15 @@ public sealed class CustomValidationService(
                 };
 
                 var hasErrors = validationResponse.HasValidationErrors(options.Value.TreatWarningsAsErrors);
-                statusCache.SetStatus(content.Key, hasErrors);
+                statusCache.SetStatus(content.Key, hasErrors, currentCulture);
 
                 return validationResponse;
             }, cancellationToken);
+
+            var cachedHasErrors = response.HasValidationErrors(options.Value.TreatWarningsAsErrors);
+            statusCache.SetStatus(content.Key, cachedHasErrors, currentCulture);
+
+            return response;
     }
 
     private async Task<string?> GetCurrentCultureAsync(string? culture, IPublishedContent content)

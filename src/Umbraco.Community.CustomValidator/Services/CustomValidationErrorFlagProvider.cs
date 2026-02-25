@@ -1,18 +1,18 @@
-﻿namespace Umbraco.Community.CustomValidator.Services;
-
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Api.Management.Services.Flags;
 using Umbraco.Cms.Api.Management.ViewModels;
+using Umbraco.Cms.Api.Management.ViewModels.Document;
 using Umbraco.Cms.Api.Management.ViewModels.Document.Collection;
 using Umbraco.Cms.Api.Management.ViewModels.Document.Item;
 using Umbraco.Cms.Api.Management.ViewModels.Tree;
-using Umbraco.Community.CustomValidator.Enums;
+
+namespace Umbraco.Community.CustomValidator.Services;
 
 /// <summary>
 /// Provides flags for documents that have validation errors.
 /// </summary>
 public sealed class CustomValidationErrorFlagProvider(
-    CustomValidationStatusCache statusCache,
+    CustomValidationFlagStatusResolver flagStatusResolver,
     ILogger<CustomValidationErrorFlagProvider> logger)
     : IFlagProvider
 {
@@ -25,13 +25,13 @@ public sealed class CustomValidationErrorFlagProvider(
         typeof(TItem) == typeof(DocumentItemResponseModel);
 
     /// <inheritdoc/>
-    public Task PopulateFlagsAsync<TItem>(IEnumerable<TItem> items) where TItem : IHasFlags
+    public async Task PopulateFlagsAsync<TItem>(IEnumerable<TItem> items) where TItem : IHasFlags
     {
         var itemsList = items.ToList();
 
         if (itemsList.Count == 0)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var documentKeys = itemsList
@@ -43,19 +43,69 @@ public sealed class CustomValidationErrorFlagProvider(
         if (documentKeys.Length == 0)
         {
             logger.LogDebug("No valid document IDs to check for validation flags");
-            return Task.CompletedTask;
+            return;
         }
 
-        var validationStatuses = GetDocsWithErrors(documentKeys);
-
-        foreach (var item in itemsList.Where(item => validationStatuses.Contains(item.Id)))
+        foreach (var item in itemsList)
         {
-            item.AddFlag(FlagAlias);
-        }
+            switch (item)
+            {
+                case DocumentTreeItemResponseModel documentTreeItem:
+                    documentTreeItem.Variants = await PopulateVariantsAsync(documentTreeItem.Id, documentTreeItem.Variants);
+                    break;
 
-        return Task.CompletedTask;
+                case DocumentCollectionResponseModel documentCollectionItem:
+                    documentCollectionItem.Variants = await PopulateVariantsAsync(documentCollectionItem.Id, documentCollectionItem.Variants);
+                    break;
+
+                case DocumentItemResponseModel documentItem:
+                    documentItem.Variants = await PopulateVariantsAsync(documentItem.Id, documentItem.Variants);
+                    break;
+            }
+        }
     }
 
-    private List<Guid> GetDocsWithErrors(Guid[] documentIds) => 
-        documentIds.Where(id => statusCache.GetStatus(id) is ValidationStatus.HasErrors).ToList();
+    private async Task<IEnumerable<DocumentVariantItemResponseModel>> PopulateVariantsAsync(
+        Guid documentId,
+        IEnumerable<DocumentVariantItemResponseModel> variants)
+    {
+        var variantsArray = variants.ToArray();
+
+        if (variantsArray.Length == 0)
+        {
+            return variantsArray;
+        }
+
+        foreach (var variant in variantsArray)
+        {
+            if (await flagStatusResolver.HasErrorsAsync(documentId, variant.Culture))
+            {
+                variant.AddFlag(FlagAlias);
+            }
+        }
+
+        return variantsArray;
+    }
+
+    private async Task<IEnumerable<DocumentVariantResponseModel>> PopulateVariantsAsync(
+        Guid documentId,
+        IEnumerable<DocumentVariantResponseModel> variants)
+    {
+        var variantsArray = variants.ToArray();
+
+        if (variantsArray.Length == 0)
+        {
+            return variantsArray;
+        }
+
+        foreach (var variant in variantsArray)
+        {
+            if (await flagStatusResolver.HasErrorsAsync(documentId, variant.Culture))
+            {
+                variant.AddFlag(FlagAlias);
+            }
+        }
+
+        return variantsArray;
+    }
 }
