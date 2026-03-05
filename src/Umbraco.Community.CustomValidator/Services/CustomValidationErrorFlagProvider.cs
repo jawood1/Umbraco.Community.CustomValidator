@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Api.Management.Services.Flags;
 using Umbraco.Cms.Api.Management.ViewModels;
 using Umbraco.Cms.Api.Management.ViewModels.Document;
@@ -13,6 +14,7 @@ namespace Umbraco.Community.CustomValidator.Services;
 /// </summary>
 public sealed class CustomValidationErrorFlagProvider(
     CustomValidationFlagStatusResolver flagStatusResolver,
+    IOptions<CustomValidatorOptions> options,
     ILogger<CustomValidationErrorFlagProvider> logger)
     : IFlagProvider
 {
@@ -27,6 +29,12 @@ public sealed class CustomValidationErrorFlagProvider(
     /// <inheritdoc/>
     public async Task PopulateFlagsAsync<TItem>(IEnumerable<TItem> items) where TItem : IHasFlags
     {
+
+        if(options.Value.EntityFlagMode == Enums.ValidationFlagMode.None)
+        {
+            return;
+        }
+
         var itemsList = items.ToList();
 
         if (itemsList.Count == 0)

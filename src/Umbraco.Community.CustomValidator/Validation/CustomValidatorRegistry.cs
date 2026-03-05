@@ -21,7 +21,6 @@ public sealed class CustomValidatorRegistry
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
         _validators = validators ?? throw new ArgumentNullException(nameof(validators));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _validators = validators;
     }
 
     public async Task<IEnumerable<ValidationMessage>> ValidateAsync(IPublishedContent content)
