@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Umbraco.Community.CustomValidator.Enums;
 
 namespace Umbraco.Community.CustomValidator.Services;
+
 public sealed class CustomValidationStatusCache(
     IMemoryCache cache,
     IOptions<CustomValidatorOptions> options,

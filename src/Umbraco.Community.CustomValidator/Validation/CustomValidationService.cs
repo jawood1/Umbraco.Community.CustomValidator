@@ -88,11 +88,17 @@ public sealed class CustomValidationService(
             return culture;
         }
 
-        var domainCulture = content.GetCultureFromDomains();
-
-        if (!string.IsNullOrEmpty(domainCulture))
+        try
         {
-            return domainCulture;
+            var domainCulture = content.GetCultureFromDomains();
+            if (!string.IsNullOrEmpty(domainCulture))
+            {
+                return domainCulture;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not resolve culture from domains for document {DocumentId}", content.Key);
         }
 
         return await languageService.GetDefaultIsoCodeAsync();

@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Api.Management.Services.Flags;
 using Umbraco.Cms.Api.Management.ViewModels;
@@ -13,7 +14,7 @@ namespace Umbraco.Community.CustomValidator.Services;
 /// Provides flags for documents that have validation errors.
 /// </summary>
 public sealed class CustomValidationErrorFlagProvider(
-    CustomValidationFlagStatusResolver flagStatusResolver,
+    IServiceScopeFactory serviceScopeFactory,
     IOptions<CustomValidatorOptions> options,
     ILogger<CustomValidationErrorFlagProvider> logger)
     : IFlagProvider
@@ -29,8 +30,7 @@ public sealed class CustomValidationErrorFlagProvider(
     /// <inheritdoc/>
     public async Task PopulateFlagsAsync<TItem>(IEnumerable<TItem> items) where TItem : IHasFlags
     {
-
-        if(options.Value.EntityFlagMode == Enums.ValidationFlagMode.None)
+        if (options.Value.EntityFlagMode == Enums.ValidationFlagMode.None)
         {
             return;
         }
@@ -54,20 +54,23 @@ public sealed class CustomValidationErrorFlagProvider(
             return;
         }
 
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
+        var flagStatusResolver = scope.ServiceProvider.GetRequiredService<CustomValidationFlagStatusResolver>();
+
         foreach (var item in itemsList)
         {
             switch (item)
             {
                 case DocumentTreeItemResponseModel documentTreeItem:
-                    documentTreeItem.Variants = await PopulateVariantsAsync(documentTreeItem.Id, documentTreeItem.Variants);
+                    documentTreeItem.Variants = await PopulateVariantsAsync(documentTreeItem.Id, documentTreeItem.Variants, flagStatusResolver);
                     break;
 
                 case DocumentCollectionResponseModel documentCollectionItem:
-                    documentCollectionItem.Variants = await PopulateVariantsAsync(documentCollectionItem.Id, documentCollectionItem.Variants);
+                    documentCollectionItem.Variants = await PopulateVariantsAsync(documentCollectionItem.Id, documentCollectionItem.Variants, flagStatusResolver);
                     break;
 
                 case DocumentItemResponseModel documentItem:
-                    documentItem.Variants = await PopulateVariantsAsync(documentItem.Id, documentItem.Variants);
+                    documentItem.Variants = await PopulateVariantsAsync(documentItem.Id, documentItem.Variants, flagStatusResolver);
                     break;
             }
         }
@@ -75,7 +78,8 @@ public sealed class CustomValidationErrorFlagProvider(
 
     private async Task<IEnumerable<DocumentVariantItemResponseModel>> PopulateVariantsAsync(
         Guid documentId,
-        IEnumerable<DocumentVariantItemResponseModel> variants)
+        IEnumerable<DocumentVariantItemResponseModel> variants,
+        CustomValidationFlagStatusResolver flagStatusResolver)
     {
         var variantsArray = variants.ToArray();
 
@@ -97,7 +101,8 @@ public sealed class CustomValidationErrorFlagProvider(
 
     private async Task<IEnumerable<DocumentVariantResponseModel>> PopulateVariantsAsync(
         Guid documentId,
-        IEnumerable<DocumentVariantResponseModel> variants)
+        IEnumerable<DocumentVariantResponseModel> variants,
+        CustomValidationFlagStatusResolver flagStatusResolver)
     {
         var variantsArray = variants.ToArray();
 

@@ -20,10 +20,10 @@ internal sealed class ValidationComposer : IComposer
         //services
         builder.Services.AddSingleton<ValidatorLookup>();
         builder.Services.AddSingleton<CustomValidatorRegistry>();
-        builder.Services.AddSingleton<CustomValidationService>();
+        builder.Services.AddScoped<CustomValidationService>();
         builder.Services.AddSingleton<CustomValidationCacheService>();
         builder.Services.AddSingleton<CustomValidationStatusCache>();
-        builder.Services.AddSingleton<CustomValidationFlagStatusResolver>();
+        builder.Services.AddScoped<CustomValidationFlagStatusResolver>();
 
         //flags
         builder.FlagProviders()

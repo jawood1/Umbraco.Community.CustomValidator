@@ -28,7 +28,7 @@ public sealed class CustomValidatorRegistry
         var validatorTypes = _validators.GetValidatorsFor(content.GetType());
         var messages = new List<ValidationMessage>();
 
-        using var scope = _serviceScopeFactory.CreateScope();
+        await using var scope = _serviceScopeFactory.CreateAsyncScope();
         var scopedProvider = scope.ServiceProvider;
 
         foreach (var validatorType in validatorTypes)
