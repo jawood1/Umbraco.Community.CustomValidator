@@ -1,3 +1,4 @@
+using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Web.Common.PublishedModels;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Models;
@@ -5,7 +6,8 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.TestSite.Validators;
 
-public class HomePageValidator() : BaseDocumentValidator<Home>
+public class HomePageValidator(
+    IVariationContextAccessor variationContextAccessor) : BaseDocumentValidator<Home>
 {
     public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Home content)
     {
@@ -16,7 +18,8 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             messages.Add(new ValidationMessage
             {
                 Message = $"Title: is too short ({content.Title.Length} characters) minimum length 10 characters.",
-                Severity = ValidationSeverity.Error
+                Severity = ValidationSeverity.Error,
+                Culture = "en-US"
             });
         }
 
@@ -35,6 +38,17 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             {
                 Message = "Meta description is recommended for SEO.",
                 Severity = ValidationSeverity.Info
+            });
+        }
+
+        if(content.ContentRows?.Count > 1)
+        {
+             messages.Add(new ValidationMessage
+            {
+                Message = $"More than 1 content row",
+                Severity = ValidationSeverity.Error,
+                PropertyAlias = "contentRows",
+                Culture = variationContextAccessor.VariationContext?.Culture
             });
         }
 

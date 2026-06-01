@@ -9,8 +9,8 @@ public class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
-        builder.AddDocumentValidator<HomePageValidator, Home>();
-        builder.AddDocumentValidator<ContentPageValidator, Content>();
+        builder.AddScopedDocumentValidator<HomePageValidator, Home>();
+        builder.AddScopedDocumentValidator<ContentPageValidator, Content>();
         builder.AddDocumentValidator<HeaderControlsValidator, IHeaderControls>();
         builder.AddScopedDocumentValidator<ScopedValidatorTest, XMlsitemap>();
         builder.AddTransientDocumentValidator<TransientValidatorTest, Article>();
