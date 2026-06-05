@@ -6,7 +6,7 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.TestSite.Validators;
 
-public class ContentPageValidator(IVariationContextAccessor variationContextAccessor) : BaseDocumentValidator<Content>
+public class ContentPageValidator() : BaseDocumentValidator<Content>
 {
     public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Content content)
     {
@@ -38,7 +38,6 @@ public class ContentPageValidator(IVariationContextAccessor variationContextAcce
                 Message = $"More than 1 content row",
                 Severity = ValidationSeverity.Error,
                 PropertyAlias = "contentRows",
-                Culture = variationContextAccessor.VariationContext?.Culture
             });
         }
 

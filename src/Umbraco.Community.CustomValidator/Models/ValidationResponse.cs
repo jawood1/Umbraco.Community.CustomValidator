@@ -10,4 +10,6 @@ public sealed record ValidationResponse
     public bool HasValidator { get; init; }
 
     public IEnumerable<ValidationMessage>? Messages { get; init; }
+
+    public string? Culture { get; init; }
 }

@@ -20,4 +20,6 @@ export interface ValidationResult {
     contentId: string;
     hasValidator: boolean;
     messages: ValidationMessage[];
+    /** Culture code (e.g. "en-US") that this validation response is for. Null/absent = invariant. */
+    culture?: string;
 }

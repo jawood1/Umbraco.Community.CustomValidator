@@ -6,8 +6,7 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.TestSite.Validators;
 
-public class HomePageValidator(
-    IVariationContextAccessor variationContextAccessor) : BaseDocumentValidator<Home>
+public class HomePageValidator() : BaseDocumentValidator<Home>
 {
     public override Task<IEnumerable<ValidationMessage>> ValidateAsync(Home content)
     {
@@ -19,7 +18,6 @@ public class HomePageValidator(
             {
                 Message = $"Title: is too short ({content.Title.Length} characters) minimum length 10 characters.",
                 Severity = ValidationSeverity.Error,
-                Culture = "en-US"
             });
         }
 
@@ -48,7 +46,6 @@ public class HomePageValidator(
                 Message = $"More than 1 content row",
                 Severity = ValidationSeverity.Error,
                 PropertyAlias = "contentRows",
-                Culture = variationContextAccessor.VariationContext?.Culture
             });
         }
 

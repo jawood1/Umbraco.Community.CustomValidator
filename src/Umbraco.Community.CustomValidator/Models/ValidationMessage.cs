@@ -11,10 +11,4 @@ public sealed record ValidationMessage
     public required ValidationSeverity Severity { get; set; }
 
     public string? PropertyAlias { get; set; }
-
-    /// <summary>
-    /// Optional culture code (e.g. "en-US") for the property variant the message targets.
-    /// Null means the property is invariant or the message applies to all cultures.
-    /// </summary>
-    public string? Culture { get; set; }
 }
