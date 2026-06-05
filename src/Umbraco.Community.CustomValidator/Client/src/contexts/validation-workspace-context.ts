@@ -6,12 +6,9 @@ import { UmbContextToken } from '@umbraco-cms/backoffice/context-api';
 import { UmbObjectState, UmbNumberState } from '@umbraco-cms/backoffice/observable-api';
 import { UMB_VALIDATION_CONTEXT, UmbDataPathPropertyValueQuery } from '@umbraco-cms/backoffice/validation';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
-import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
-import { UmbEntityUpdatedEvent } from '@umbraco-cms/backoffice/entity-action';
+import { firstValueFrom } from '@umbraco-cms/backoffice/external/rxjs';
 
 const AUTO_VALIDATE_DELAY_MS = 500;
-const POST_SAVE_DELAY_MS = 300;
-const SAVE_DELAY_MS = 500;
 
 export const VALIDATION_WORKSPACE_CONTEXT = new UmbContextToken<ValidationWorkspaceContext>(
     'UmbWorkspaceContext',
@@ -24,11 +21,8 @@ export class ValidationWorkspaceContext extends UmbContextBase {
     #lastResult = new UmbObjectState<ValidationResult | undefined>(undefined);
     #nativeValidationContext?: typeof UMB_VALIDATION_CONTEXT.TYPE;
     #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
-    #actionEventContext?: typeof UMB_ACTION_EVENT_CONTEXT.TYPE;
     #documentId?: string;
     #activeCulture?: string;
-    /** Prevents a double validation when triggerManualValidation saves and fires UmbEntityUpdatedEvent. */
-    #suppressSaveEventOnce = false;
     /** Skip the initial workspace.data emission so we don't clear messages before auto-validation runs. */
     #hasReceivedInitialData = false;
     /** Pending auto-validation timer — debounced so the culture observer can update #activeCulture first. */
@@ -100,36 +94,14 @@ export class ValidationWorkspaceContext extends UmbContextBase {
                 );
             }
         });
-
-        this.consumeContext(UMB_ACTION_EVENT_CONTEXT, (context) => {
-            if (!context) return;
-            this.#actionEventContext = context;
-            context.addEventListener(UmbEntityUpdatedEvent.TYPE, this.#onEntityUpdated);
-        });
     }
 
     override destroy() {
+        if (this.#autoValidateTimer !== undefined) {
+            clearTimeout(this.#autoValidateTimer);
+        }
         super.destroy();
-        if (this.#actionEventContext) {
-            this.#actionEventContext.removeEventListener(
-                UmbEntityUpdatedEvent.TYPE,
-                this.#onEntityUpdated
-            );
-        }
     }
-
-    #onEntityUpdated = async (event: Event) => {
-        if (!(event instanceof UmbEntityUpdatedEvent)) return;
-        if (!this.#documentId || event.getUnique() !== this.#documentId) return;
-
-        if (this.#suppressSaveEventOnce) {
-            this.#suppressSaveEventOnce = false;
-            return;
-        }
-
-        await this.#delay(POST_SAVE_DELAY_MS);
-        await this.#runValidation();
-    };
 
     #scheduleAutoValidation() {
         // Debounce: cancel any pending timer so the culture observer always gets a chance to
@@ -163,7 +135,7 @@ export class ValidationWorkspaceContext extends UmbContextBase {
         try {
             const result = await this.#apiService.validateDocument(documentId, culture);
             this.#lastResult.setValue(result);
-            this.#pushInlineValidationMessages(result.messages ?? [], culture);
+            await this.#pushInlineValidationMessages(result.messages ?? [], culture);
             return result;
         } catch (error) {
             console.error('Manual validation failed:', error);
@@ -182,15 +154,10 @@ export class ValidationWorkspaceContext extends UmbContextBase {
 
         try {
             if (options.withSave && this.#contentWorkspace?.requestSubmit) {
-                // Suppress the UmbEntityUpdatedEvent fired by the save to avoid
-                // a redundant second validation immediately after this one.
-                this.#suppressSaveEventOnce = true;
                 await this.#contentWorkspace.requestSubmit();
-                await this.#delay(SAVE_DELAY_MS);
             }
             await this.validateManually(this.#documentId, options.culture ?? this.#activeCulture);
         } catch (error) {
-            this.#suppressSaveEventOnce = false;
             console.error('Manual validation trigger failed:', error);
         }
     }
@@ -200,8 +167,8 @@ export class ValidationWorkspaceContext extends UmbContextBase {
         this.#nativeValidationContext?.messages.removeMessagesByType('customValidator');
     }
 
-    #pushInlineValidationMessages(messages: ValidationMessage[], culture?: string) {
-        if (!this.#nativeValidationContext) return;
+    async #pushInlineValidationMessages(messages: ValidationMessage[], culture?: string) {
+        if (!this.#nativeValidationContext || !this.#contentWorkspace) return;
 
         this.#nativeValidationContext.messages.removeMessagesByType('customValidator');
 
@@ -212,37 +179,43 @@ export class ValidationWorkspaceContext extends UmbContextBase {
             // UmbVariantId stores culture as-is (e.g. 'en-US'), and filterMsgByVariantId does a
             // case-sensitive string comparison. Lowercasing would produce 'en-us' which wouldn't
             // match variantId.culture = 'en-US', causing the variant filter to reject our messages.
-            // msg.culture from C# preserves the exact string the FE sent as ?culture=... query param,
-            // which is identical to #activeCulture (from workspace.splitView.activeVariantByIndex).
-            const resolvedCulture = msg.culture ?? culture ?? null;
+            //
+            // Query the content type structure to determine whether this property varies by culture.
+            // Following the official Umbraco example pattern — this lets us construct exactly one
+            // correct path instead of a dual-path workaround.
+            const obs = await this.#contentWorkspace.structure.propertyStructureByAlias(msg.propertyAlias);
+            const propType = await firstValueFrom(obs, { defaultValue: undefined });
 
-            // Add the primary path matching the resolved culture (for culture-varied properties).
-            const primaryPath = `$.values[${UmbDataPathPropertyValueQuery({
-                alias: msg.propertyAlias,
-                culture: resolvedCulture,
-                segment: null,
-            })}].value`;
-            this.#nativeValidationContext.messages.addMessage('customValidator', primaryPath, msg.message);
-
-            // Also add a null-culture path so invariant properties get badges on multilingual sites.
-            // Invariant properties store values with culture: null. A culture-specific path (e.g. 'en-us')
-            // will never match them. Adding a duplicate with culture: null is safe — it won't match
-            // culture-specific property entries (e.g. title.fr) so it won't create false badges.
-            if (resolvedCulture !== null) {
-                const nullCulturePath = `$.values[${UmbDataPathPropertyValueQuery({
+            if (propType !== undefined) {
+                // Property structure is known — build exactly one correct path.
+                const resolvedCulture = msg.culture ?? (propType.variesByCulture ? (culture ?? null) : null);
+                const path = `$.values[${UmbDataPathPropertyValueQuery({
                     alias: msg.propertyAlias,
-                    culture: null,
+                    culture: resolvedCulture,
                     segment: null,
                 })}].value`;
-                this.#nativeValidationContext.messages.addMessage('customValidator', nullCulturePath, msg.message);
+                this.#nativeValidationContext.messages.addMessage('customValidator', path, msg.message);
+            } else {
+                // Property structure unknown — fall back to dual-path so the badge appears
+                // regardless of whether the property is invariant or culture-varied.
+                const resolvedCulture = msg.culture ?? culture ?? null;
+                const primaryPath = `$.values[${UmbDataPathPropertyValueQuery({
+                    alias: msg.propertyAlias,
+                    culture: resolvedCulture,
+                    segment: null,
+                })}].value`;
+                this.#nativeValidationContext.messages.addMessage('customValidator', primaryPath, msg.message);
+                if (resolvedCulture !== null) {
+                    const nullCulturePath = `$.values[${UmbDataPathPropertyValueQuery({
+                        alias: msg.propertyAlias,
+                        culture: null,
+                        segment: null,
+                    })}].value`;
+                    this.#nativeValidationContext.messages.addMessage('customValidator', nullCulturePath, msg.message);
+                }
             }
         }
     }
-
-    #delay(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
 }
 
 export { ValidationWorkspaceContext as api };
