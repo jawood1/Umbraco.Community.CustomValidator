@@ -373,17 +373,15 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
 
     #renderControls() {
         return html`
-            <uui-button-group>
-                <uui-button
+            <uui-button
                     look="primary"
                     color="default"
                     label="Save & Validate"
                     @click=${this.#handleValidateClick}
                     ?disabled=${!this._documentId || this._isValidating}>
                     Save & Validate
-                </uui-button>
-                ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}
-            </uui-button-group>
+           </uui-button>
+           ${this._isValidating ? html`<uui-loader></uui-loader>` : nothing}
         `;
     }
 

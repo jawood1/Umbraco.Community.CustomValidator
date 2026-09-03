@@ -1,7 +1,7 @@
 {
   "id": "umbraco-community-custom-validator",
   "name": "Umbraco Community Custom Validator",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "allowTelemetry": true,
   "extensions": [
     {
