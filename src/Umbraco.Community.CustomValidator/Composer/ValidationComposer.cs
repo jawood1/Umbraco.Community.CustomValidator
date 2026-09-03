@@ -10,11 +10,19 @@ using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Composer;
 
+using Umbraco.Cms.Api.Common.OpenApi;
+using Umbraco.Cms.Api.Management.OpenApi;
+
 [ExcludeFromCodeCoverage]
 internal sealed class ValidationComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
+
+        builder.AddBackOfficeOpenApiDocument(Constants.ApiName, document => document
+            .WithTitle("Umbraco Custom Validator")
+            .WithBackOfficeAuthentication());
+        
         builder.Services.Configure<CustomValidatorOptions>(builder.Config.GetSection(Constants.OptionsName));
 
         //services

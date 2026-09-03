@@ -15,6 +15,7 @@ using Umbraco.Community.CustomValidator.Validation;
 
 namespace Umbraco.Community.CustomValidator.Tests.Services;
 
+using Umbraco.Cms.Api.Management.ViewModels.Content;
 using Umbraco.Cms.Api.Management.ViewModels.Tree;
 using Umbraco.Cms.Core.Models.PublishedContent;
 
@@ -282,7 +283,7 @@ public sealed class CustomValidationErrorFlagProviderTests
         new()
         {
             Name = culture ?? "Invariant",
-            State = DocumentVariantState.Draft,
+            State = PublishableVariantState.Draft,
             Culture = culture
         };
 

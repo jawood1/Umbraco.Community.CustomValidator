@@ -10,8 +10,12 @@ using Umbraco.Extensions;
 
 namespace Umbraco.Community.CustomValidator.Controllers;
 
-[VersionedApiBackOfficeRoute("custom-validation")]
-[ApiExplorerSettings(GroupName = "Custom Document Validation API")]
+using Asp.Versioning;
+using Umbraco.Cms.Api.Common.Attributes;
+
+[MapToApi(Constants.ApiName)]
+[ApiVersion("1.0")]
+[ApiExplorerSettings(GroupName = "Custom Validation")]
 public sealed class DocumentValidationController(
     IUmbracoContextAccessor umbracoContextAccessor,
     CustomValidationService validationService,
@@ -19,7 +23,8 @@ public sealed class DocumentValidationController(
     : ManagementApiControllerBase
 {
 
-    [HttpGet("validate/{id:guid}")]
+    [HttpGet("custom-validation/validate/{id:guid}")]
+    [ApiVersion("1.0")]
     [ProducesResponseType(typeof(ValidationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
