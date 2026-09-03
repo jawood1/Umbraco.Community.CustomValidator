@@ -25,6 +25,12 @@ Custom Validator is a validation framework for Umbraco backoffice that provides 
 ### Multi-Culture Split View
 ![Multi-culture validation results displayed in split-view mode](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/split-lang-view.jpg)
 
+## Supported Versions
+
+> **v2.x** supports Umbraco v18
+> 
+> **v1.x** supports Umbraco v17
+
 ## Installation
 
 Install the package via NuGet:
@@ -41,7 +47,7 @@ Install-Package Umbraco.Community.CustomValidator
 
 ### Requirements
 
-- Umbraco CMS 17.3+
+- Umbraco CMS 17.3+ 
 - .NET 10.0+
 
 ## Quick Start
