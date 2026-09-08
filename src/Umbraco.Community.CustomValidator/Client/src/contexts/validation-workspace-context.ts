@@ -98,26 +98,35 @@ export class ValidationWorkspaceContext extends UmbContextBase {
                     return;
                 }
 
-                // Create validators for each variant
+                // Create validators for each variant. Exactly one is marked "primary" (the
+                // first in iteration order) - it is the sole owner of any INVARIANT
+                // property's message/watcher (see CustomValidationVariantValidator). Without
+                // this, every variant's validator would resolve the same invariant property
+                // to the identical message path and race to add/remove it independently,
+                // which triggers a stack overflow in Umbraco's native hint propagation when
+                // multiple panes render the same invariant property in split view.
                 const newValidators = new Map<string, CustomValidationVariantValidator>();
 
-                for (const variantOption of variantOptions) {
+                variantOptions.forEach((variantOption, index) => {
                     const variantId = UmbVariantId.Create(variantOption);
                     const key = `${variantOption.culture ?? 'invariant'}`;
+                    const isPrimary = index === 0;
 
                     // Check if validator already exists
                     if (this.#validators.has(key)) {
                         const existing = this.#validators.get(key)!;
+                        existing.setIsPrimary(isPrimary);
                         newValidators.set(key, existing);
                     } else {
                         // Create new validator for this variant
                         const validator = new CustomValidationVariantValidator(
                             this,
-                            variantId
+                            variantId,
+                            isPrimary
                         );
                         newValidators.set(key, validator);
                     }
-                }
+                });
 
                 // Destroy validators for variants that no longer exist
                 for (const [key, validator] of this.#validators) {

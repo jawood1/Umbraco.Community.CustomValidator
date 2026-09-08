@@ -21,7 +21,7 @@ public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
             messages.AddError<IHeaderControls>(
                 "Title requires a Subtitle to also be set",
                 x => x.Title,
-                x => x.Subtitle);
+                relatedProperties: x => x.Subtitle);
         }
 
         return Task.FromResult<IEnumerable<ValidationMessage>>(messages);

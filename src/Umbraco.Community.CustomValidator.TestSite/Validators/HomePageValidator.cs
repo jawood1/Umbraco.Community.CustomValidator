@@ -48,7 +48,7 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             {
                 Message = "Meta description is recommended for SEO.",
                 Severity = ValidationSeverity.Warning,
-                PropertyAlias = "metaDescription"
+                PropertyAlias = "metaDescription",
             });
         }
 

@@ -40,13 +40,25 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 	#ownPaths = new Map<string, string>();
 	/** propertyAlias -> variesByCulture, cached since property structure doesn't change mid-session. */
 	#variesByCultureCache = new Map<string, boolean>();
+	/**
+	 * Only the primary validator (one per document, see ValidationWorkspaceContext) manages
+	 * INVARIANT properties. Every variant resolves an invariant property to the identical
+	 * message path (culture is always null), so if every validator instance independently
+	 * added/removed/watched it, they would race on the same path — which triggers a stack
+	 * overflow in Umbraco's native hint propagation when the property is rendered in more
+	 * than one split-view pane. Culture-varying properties are unaffected: every validator
+	 * always owns its own path for those, regardless of this flag.
+	 */
+	#isPrimary: boolean;
 
 	constructor(
 		host: UmbControllerHost,
-		variantId?: UmbVariantId
+		variantId?: UmbVariantId,
+		isPrimary = true
 	) {
 		super(host);
 		this.#variantId = variantId;
+		this.#isPrimary = isPrimary;
 		this.#apiService = new ValidationApiService(this);
 
 		this.consumeContext(UMB_VALIDATION_CONTEXT, (context) => {
@@ -70,6 +82,32 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 				this.#onEntityUpdated
 			);
 		});
+	}
+
+	/**
+	 * Updates whether this validator is the primary owner of INVARIANT properties (see the
+	 * class doc comment on #isPrimary). If demoted from primary, immediately releases
+	 * ownership of any invariant property it currently owns — the message itself is left in
+	 * place (it's still valid and shared across variants), only this instance's own
+	 * tracking/watcher is torn down, so the newly-primary validator can pick it up cleanly on
+	 * its own next revalidate cycle without a duplicate-owner window.
+	 */
+	setIsPrimary(isPrimary: boolean) {
+		if (this.#isPrimary === isPrimary) return;
+		this.#isPrimary = isPrimary;
+		if (!isPrimary) {
+			void this.#releaseInvariantOwnership();
+		}
+	}
+
+	async #releaseInvariantOwnership() {
+		for (const alias of [...this.#ownPaths.keys()]) {
+			const variesByCulture = await this.#resolveVariesByCulture(alias);
+			if (!variesByCulture) {
+				this.#ownPaths.delete(alias);
+				this.removeUmbControllerByAlias(this.#watcherAlias(alias));
+			}
+		}
 	}
 
 	#onEntityUpdated = async (event: Event) => {
@@ -130,31 +168,37 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 
 		if (messages.length === 0) return;
 
-		// Resolve the path for every distinct property alias concurrently, instead of awaiting
-		// them one at a time — property-structure lookups are independent of one another.
-		// A message may target more than one alias (its own propertyAlias PLUS any related
-		// aliases), so collect the full flattened set across all messages before resolving.
+		// Resolve the path + variesByCulture for every distinct property alias concurrently,
+		// instead of awaiting them one at a time — property-structure lookups are independent
+		// of one another. A message may target more than one alias (its own propertyAlias PLUS
+		// any related aliases), so collect the full flattened set across all messages first.
 		const aliases = [...new Set(messages.flatMap((m) => this.#targetAliases(m)))];
-		const paths = await Promise.all(aliases.map((alias) => this.#buildPathForAlias(alias)));
-		const pathByAlias = new Map(aliases.map((alias, i) => [alias, paths[i]]));
+		const resolved = await Promise.all(aliases.map((alias) => this.#resolveAlias(alias)));
+		const resolvedByAlias = new Map(aliases.map((alias, i) => [alias, resolved[i]]));
 
 		for (const msg of messages) {
 			for (const alias of this.#targetAliases(msg)) {
-				const path = pathByAlias.get(alias);
-				if (!path) continue;
+				const info = resolvedByAlias.get(alias);
+				if (!info) continue;
 
-				this.#validationContext.messages.addMessage('customValidator', path, msg.message);
+				// Only the primary validator manages INVARIANT properties — every variant would
+				// otherwise resolve the same property to the identical path and race to
+				// add/remove/watch it independently (see class doc comment on #isPrimary).
+				// Culture-varying properties are always owned by their own variant, unaffected.
+				if (!info.variesByCulture && !this.#isPrimary) continue;
+
+				this.#validationContext.messages.addMessage('customValidator', info.path, msg.message);
 
 				// Multiple messages can target the same property alias — only set up the
 				// path/watcher once per alias (the path is identical for all of them, since it's
 				// derived from the alias + this validator's own variant, not the message content).
 				if (!this.#ownPaths.has(alias)) {
-					this.#ownPaths.set(alias, path);
+					this.#ownPaths.set(alias, info.path);
 
 					// Watch this specific property's value (for our own variant only) so that
 					// editing THIS property clears ONLY its own badge — not any other related
 					// property's, and not this property's message for any OTHER variant/pane.
-					void this.#watchPropertyForClear(alias, path);
+					void this.#watchPropertyForClear(alias, info.path);
 				}
 			}
 		}
@@ -165,18 +209,31 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 		return [...new Set([msg.propertyAlias, ...(msg.relatedPropertyAliases ?? [])].filter((a): a is string => !!a))];
 	}
 
-	/** Builds the exact validation-message path for a property alias, for this validator's own variant. */
-	async #buildPathForAlias(propertyAlias: string): Promise<string> {
+	/** Resolves both the validation-message path and the variesByCulture flag for a property alias. */
+	async #resolveAlias(propertyAlias: string): Promise<{ path: string; variesByCulture: boolean }> {
+		const variesByCulture = await this.#resolveVariesByCulture(propertyAlias);
+		const culture = variesByCulture ? (this.#variantId?.culture ?? null) : null;
+
+		const path = `$.values[${UmbDataPathPropertyValueQuery({
+			alias: propertyAlias,
+			culture,
+			segment: this.#variantId?.segment ?? null,
+		})}].value`;
+
+		return { path, variesByCulture };
+	}
+
+	/**
+	 * Whether a property varies by culture, cached per alias since property structure doesn't
+	 * change mid-session, avoiding a repeat structure lookup on every revalidate cycle.
+	 */
+	async #resolveVariesByCulture(propertyAlias: string): Promise<boolean> {
 		const workspace = this.#contentWorkspace;
 		if (!workspace) {
 			// Should never happen — callers only invoke this while #contentWorkspace is set.
 			throw new Error('CustomValidationVariantValidator: content workspace unavailable');
 		}
 
-		// Check if this property varies by culture, so we build the correct path:
-		// culture-varied properties use this variant's culture; invariant properties
-		// always use null. The result is cached per alias since property structure doesn't
-		// change mid-session, avoiding a repeat structure lookup on every revalidate cycle.
 		let variesByCulture = this.#variesByCultureCache.get(propertyAlias);
 		if (variesByCulture === undefined) {
 			const obs = await workspace.structure.propertyStructureByAlias(propertyAlias);
@@ -186,14 +243,7 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 			variesByCulture = propType !== undefined ? (propType.variesByCulture ?? false) : true;
 			this.#variesByCultureCache.set(propertyAlias, variesByCulture);
 		}
-
-		const culture = variesByCulture ? (this.#variantId?.culture ?? null) : null;
-
-		return `$.values[${UmbDataPathPropertyValueQuery({
-			alias: propertyAlias,
-			culture,
-			segment: this.#variantId?.segment ?? null,
-		})}].value`;
+		return variesByCulture;
 	}
 
 	/**
