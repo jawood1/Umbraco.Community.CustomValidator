@@ -34,8 +34,6 @@ export class ValidationWorkspaceContext extends UmbContextBase {
     #nativeValidationContext?: typeof UMB_VALIDATION_CONTEXT.TYPE;
     #contentWorkspace?: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE;
     #documentId?: string;
-    /** Skip the initial workspace.data emission so we don't clear messages before the first load. */
-    #hasReceivedInitialData = false;
     /** Map of validator aliases to their instances (for cleanup) */
     #validators = new Map<string, CustomValidationVariantValidator>();
 
@@ -70,25 +68,13 @@ export class ValidationWorkspaceContext extends UmbContextBase {
                 }
             }, '_cvDocumentId');
 
-            // Clear stale inline messages when the user edits the document.
-            // Umbraco's publish gate checks ALL validation context messages via getHasAnyMessages(),
-            // so our messages must be cleared as soon as the user makes a change — otherwise a
-            // previously-validated error will block Save & Publish even after the field is fixed.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const workspaceData = (workspace as any).data;
-            if (workspaceData) {
-                this.observe(
-                    workspaceData,
-                    (_data: unknown) => {
-                        if (!this.#hasReceivedInitialData) {
-                            this.#hasReceivedInitialData = true;
-                            return;
-                        }
-                        this.clearInlineMessages();
-                    },
-                    '_cvDataChanged'
-                );
-            }
+            // NOTE: previously there was a blanket observer here on the whole `workspace.data`
+            // object that cleared ALL inline messages (removeMessagesByType) on ANY property
+            // edit, anywhere in the document. That was a bug of ours, not Umbraco's intended
+            // behavior — the official Umbraco example scopes clearing to one specific property
+            // + variant via propertyValueByAlias/removeMessagesByTypeAndPath. That granular
+            // clearing now lives in CustomValidationVariantValidator (per-property, per-variant),
+            // so no document-wide clear-on-edit observer is needed here.
         });
     }
 
@@ -175,24 +161,6 @@ export class ValidationWorkspaceContext extends UmbContextBase {
             throw error;
         } finally {
             this.#isValidating.setValue(false);
-        }
-    }
-
-    /**
-     * Called by the "Save & Validate" button. Optionally saves the document first,
-     * then validates the given culture and returns the result to the caller (pane).
-     */
-    async triggerManualValidation(options: { culture?: string; withSave?: boolean } = {}): Promise<ValidationResult | undefined> {
-        if (!this.#documentId) return undefined;
-
-        try {
-            if (options.withSave && this.#contentWorkspace?.requestSubmit) {
-                await this.#contentWorkspace.requestSubmit();
-            }
-            return await this.validateManually(this.#documentId, options.culture);
-        } catch (error) {
-            console.error('Manual validation trigger failed:', error);
-            return undefined;
         }
     }
 

@@ -18,6 +18,17 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             {
                 Message = $"Title: is too short ({content.Title.Length} characters) minimum length 10 characters.",
                 Severity = ValidationSeverity.Error,
+                PropertyAlias = "title"
+            });
+        }
+
+        if(!string.IsNullOrWhiteSpace(content.Title) && content.Title.Contains("z"))
+        {
+            messages.Add(new ValidationMessage
+            {
+                Message = $"ANOTHER ERROR",
+                Severity = ValidationSeverity.Error,
+                PropertyAlias = "title"
             });
         }
 

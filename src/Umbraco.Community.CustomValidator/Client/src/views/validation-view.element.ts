@@ -38,10 +38,12 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     #variantObserverSetup = false;
     #instanceIndexAssigned = false;
 
-    @state()
+    // NOTE: instanceCount/_documentId/_currentCulture are internal bookkeeping only — they are
+    // never read in render(), so they are plain fields (not @state()) to avoid scheduling
+    // needless Lit re-renders on every document/culture switch or pane-index assignment.
+    // Only _validationResult and _isValidating actually affect the rendered output.
     private instanceCount = 0;
 
-    @state()
     private _documentId?: string;
 
     @state()
@@ -50,11 +52,7 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     @state()
     private _isValidating = false;
 
-    @state()
     private _currentCulture?: string;
-
-    @state()
-    private _cultureReady = false;
 
     constructor() {
         super();
@@ -133,10 +131,6 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
                 const newCulture = (variant as { culture?: string } | undefined)?.culture ?? undefined;
                 const cultureChanged = this._currentCulture !== newCulture;
                 this._currentCulture = newCulture;
-
-                if (!this._cultureReady) {
-                    this._cultureReady = true;
-                }
 
                 // Validate on culture change OR first load (no result yet)
                 if (this._documentId && (cultureChanged || !this._validationResult)) {
