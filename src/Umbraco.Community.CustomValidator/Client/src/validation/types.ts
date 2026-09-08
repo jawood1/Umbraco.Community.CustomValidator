@@ -12,6 +12,8 @@ export interface ValidationMessage {
     message: string;
     severity: ValidationSeverity;
     propertyAlias?: string;
+    /** Additional property aliases this message also relates to (e.g. cross-field validation). The inline badge is shown on propertyAlias AND every alias listed here. */
+    relatedPropertyAliases?: string[];
     /** Culture code (e.g. "en-US") for the target property variant. Null/absent = invariant. */
     culture?: string;
 }

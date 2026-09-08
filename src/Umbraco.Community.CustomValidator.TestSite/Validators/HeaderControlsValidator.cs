@@ -21,6 +21,17 @@ public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
             });
         }
 
+        if (string.IsNullOrWhiteSpace(content.Subtitle) && !string.IsNullOrWhiteSpace(content.Title))
+        {
+            messages.Add(new ValidationMessage
+            {
+                Message = "Title requires a Subtitle to also be set",
+                Severity = ValidationSeverity.Error,
+                PropertyAlias = "title",
+                RelatedPropertyAliases = ["subtitle"]
+            });
+        }
+
         return Task.FromResult<IEnumerable<ValidationMessage>>(messages);
     }
 }

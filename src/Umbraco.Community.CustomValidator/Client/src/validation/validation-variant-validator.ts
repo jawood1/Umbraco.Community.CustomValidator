@@ -132,30 +132,37 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 
 		// Resolve the path for every distinct property alias concurrently, instead of awaiting
 		// them one at a time — property-structure lookups are independent of one another.
-		const aliases = [...new Set(messages.map((m) => m.propertyAlias).filter((a): a is string => !!a))];
+		// A message may target more than one alias (its own propertyAlias PLUS any related
+		// aliases), so collect the full flattened set across all messages before resolving.
+		const aliases = [...new Set(messages.flatMap((m) => this.#targetAliases(m)))];
 		const paths = await Promise.all(aliases.map((alias) => this.#buildPathForAlias(alias)));
 		const pathByAlias = new Map(aliases.map((alias, i) => [alias, paths[i]]));
 
 		for (const msg of messages) {
-			if (!msg.propertyAlias) continue;
+			for (const alias of this.#targetAliases(msg)) {
+				const path = pathByAlias.get(alias);
+				if (!path) continue;
 
-			const path = pathByAlias.get(msg.propertyAlias);
-			if (!path) continue;
+				this.#validationContext.messages.addMessage('customValidator', path, msg.message);
 
-			this.#validationContext.messages.addMessage('customValidator', path, msg.message);
+				// Multiple messages can target the same property alias — only set up the
+				// path/watcher once per alias (the path is identical for all of them, since it's
+				// derived from the alias + this validator's own variant, not the message content).
+				if (!this.#ownPaths.has(alias)) {
+					this.#ownPaths.set(alias, path);
 
-			// Multiple messages can target the same property alias — only set up the path/watcher
-			// once per alias (the path is identical for both, since it's derived from the alias
-			// + this validator's own variant, not the message content).
-			if (!this.#ownPaths.has(msg.propertyAlias)) {
-				this.#ownPaths.set(msg.propertyAlias, path);
-
-				// Watch this specific property's value (for our own variant only) so that editing
-				// THIS property clears ONLY this message — not any other property's, and not this
-				// property's message for any OTHER variant/pane.
-				void this.#watchPropertyForClear(msg.propertyAlias, path);
+					// Watch this specific property's value (for our own variant only) so that
+					// editing THIS property clears ONLY its own badge — not any other related
+					// property's, and not this property's message for any OTHER variant/pane.
+					void this.#watchPropertyForClear(alias, path);
+				}
 			}
 		}
+	}
+
+	/** All property aliases a message's inline badge should be applied to: its own alias plus any related aliases. */
+	#targetAliases(msg: ValidationMessage): string[] {
+		return [...new Set([msg.propertyAlias, ...(msg.relatedPropertyAliases ?? [])].filter((a): a is string => !!a))];
 	}
 
 	/** Builds the exact validation-message path for a property alias, for this validator's own variant. */

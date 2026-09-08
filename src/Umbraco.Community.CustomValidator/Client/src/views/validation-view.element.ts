@@ -4,6 +4,7 @@ import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { UmbEntityUpdatedEvent } from '@umbraco-cms/backoffice/entity-action';
+import { firstValueFrom } from '@umbraco-cms/backoffice/external/rxjs';
 import { VALIDATION_WORKSPACE_CONTEXT } from '../contexts/validation-workspace-context.js';
 import type { ValidationResult, NotificationColor, ValidationMessage } from '../validation/types.js';
 import { ValidationSeverity } from '../validation/types.js';
@@ -53,6 +54,13 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     private _isValidating = false;
 
     private _currentCulture?: string;
+
+    // propertyAlias -> friendly display name, for "related property" aliases referenced by the
+    // current result's messages. Resolved asynchronously (structure lookups) then cached, since
+    // render() must stay a synchronous Map read; a NEW Map is assigned on update so Lit detects
+    // the change.
+    @state()
+    private _relatedNamesByAlias = new Map<string, string>();
 
     constructor() {
         super();
@@ -209,6 +217,7 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
 
                     const result = await validationContext.validateManually(this._documentId!, this._currentCulture);
                     this._validationResult = result;
+                    await this.#resolveRelatedNames(result?.messages ?? []);
                 } catch (error) {
                     console.error('Validation failed:', error);
 
@@ -252,6 +261,37 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
             await this.#validateAndUpdateResult({ skipSave });
         }
     };
+
+    /**
+     * Resolves friendly display names for every distinct "related property" alias referenced by
+     * the given messages (the message's own propertyAlias already has its label shown inline via
+     * the property row itself, so only relatedPropertyAliases need a resolved name here). Results
+     * are cached in `_relatedNamesByAlias` across calls, since property structure doesn't change
+     * mid-session — falls back to the raw alias if the structure lookup can't find it.
+     */
+    async #resolveRelatedNames(messages: ValidationMessage[]) {
+        const workspace = this.#contentWorkspace;
+        if (!workspace) return;
+
+        const aliases = [...new Set(messages.flatMap((m) => m.relatedPropertyAliases ?? []))]
+            .filter((alias) => !this._relatedNamesByAlias.has(alias));
+
+        if (aliases.length === 0) return;
+
+        const resolved = await Promise.all(
+            aliases.map(async (alias) => {
+                const obs = await workspace.structure.propertyStructureByAlias(alias);
+                const propType = await firstValueFrom(obs, { defaultValue: undefined });
+                return [alias, propType?.name ?? alias] as const;
+            })
+        );
+
+        const next = new Map(this._relatedNamesByAlias);
+        for (const [alias, name] of resolved) {
+            next.set(alias, name);
+        }
+        this._relatedNamesByAlias = next;
+    }
 
     #getMessageCounts(): { errors: number; warnings: number } {
         if (!this._validationResult) {
@@ -313,11 +353,26 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
                                         ${msg.severity}
                                     </uui-tag>
                                 </uui-table-cell>
-                                <uui-table-cell>${msg.message}</uui-table-cell>
+                                <uui-table-cell>
+                                    ${msg.message}
+                                    ${this.#renderRelatedProperties(msg)}
+                                </uui-table-cell>
                             </uui-table-row>
                         `
                     )}
         </uui-table>`;
+    }
+
+    #renderRelatedProperties(msg: ValidationMessage) {
+        if (!msg.relatedPropertyAliases?.length) return nothing;
+
+        const names = msg.relatedPropertyAliases.map((alias) => this._relatedNamesByAlias.get(alias) ?? alias);
+
+        return html`
+            <div style="color: var(--uui-color-text-alt); font-size: 0.85em; margin-top: var(--uui-size-space-1);">
+                Related: ${names.join(', ')}
+            </div>
+        `;
     }
 
     #renderLoadingState() {
