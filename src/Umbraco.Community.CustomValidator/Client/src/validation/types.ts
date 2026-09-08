@@ -22,4 +22,6 @@ export interface ValidationResult {
     messages: ValidationMessage[];
     /** Culture code (e.g. "en-US") that this validation response is for. Null/absent = invariant. */
     culture?: string;
+    /** When true, Warning-severity messages should be treated as blocking (inline badge + submit-blocking), same as Error. */
+    treatWarningsAsErrors?: boolean;
 }

@@ -10,7 +10,7 @@ import { UmbEntityUpdatedEvent } from '@umbraco-cms/backoffice/entity-action';
 import type { UmbVariantId } from '@umbraco-cms/backoffice/variant';
 import { firstValueFrom } from '@umbraco-cms/backoffice/external/rxjs';
 import { ValidationApiService } from '../apis/validation-api.service.js';
-import type { ValidationMessage } from './types.js';
+import { ValidationSeverity, type ValidationMessage } from './types.js';
 
 const ENTITY_UPDATED_DELAY_MS = 300;
 
@@ -95,7 +95,18 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 			if (!documentId || !this.#validationContext || !this.#contentWorkspace) return;
 
 			const result = await this.#apiService.validateDocument(documentId, this.#variantId?.culture ?? undefined);
-			await this.#applyMessages(result?.messages ?? []);
+
+			// A message is only treated as blocking (inline badge + submit-blocking) if it's an
+			// Error, or a Warning while the backend's TreatWarningsAsErrors setting is enabled.
+			// Info is never blocking. Mirrors the backend's own CustomValidationExtensions.IsError.
+			const treatWarningsAsErrors = result?.treatWarningsAsErrors ?? false;
+			const blockingMessages = (result?.messages ?? []).filter(
+				(m) =>
+					m.severity === ValidationSeverity.Error ||
+					(m.severity === ValidationSeverity.Warning && treatWarningsAsErrors)
+			);
+
+			await this.#applyMessages(blockingMessages);
 		} catch (error) {
 			console.error('Validation failed for variant:', error);
 		} finally {

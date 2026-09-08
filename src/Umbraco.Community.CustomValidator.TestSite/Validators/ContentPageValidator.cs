@@ -17,7 +17,7 @@ public class ContentPageValidator() : BaseDocumentValidator<Content>
             messages.Add(new ValidationMessage
             {
                 Message = "Title cannot be empty",
-                Severity = ValidationSeverity.Error,
+                Severity = ValidationSeverity.Warning,
                 PropertyAlias = "title"
             });
         }

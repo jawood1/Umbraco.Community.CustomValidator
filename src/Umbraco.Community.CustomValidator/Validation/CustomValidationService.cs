@@ -48,7 +48,8 @@ public sealed class CustomValidationService(
                 ContentId = content.Key,
                 HasValidator = false,
                 Messages = [],
-                Culture = currentCulture
+                Culture = currentCulture,
+                TreatWarningsAsErrors = options.Value.TreatWarningsAsErrors
             };
         }
 
@@ -80,7 +81,7 @@ public sealed class CustomValidationService(
             var cachedHasErrors = response.HasValidationErrors(options.Value.TreatWarningsAsErrors);
             statusCache.SetStatus(content.Key, cachedHasErrors, currentCulture);
 
-            return response;
+            return response with { TreatWarningsAsErrors = options.Value.TreatWarningsAsErrors };
     }
 
     private async Task<string?> GetCurrentCultureAsync(string? culture, IPublishedContent content)

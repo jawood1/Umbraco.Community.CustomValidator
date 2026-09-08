@@ -16,7 +16,7 @@ public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
             messages.Add(new ValidationMessage
             {
                 Message = "Subtitle empty",
-                Severity = ValidationSeverity.Error,
+                Severity = ValidationSeverity.Warning,
                 PropertyAlias = "subtitle"
             });
         }

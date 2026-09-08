@@ -37,7 +37,8 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             messages.Add(new ValidationMessage
             {
                 Message = "Main Image: missing alt text for accessibility.",
-                Severity = ValidationSeverity.Warning
+                Severity = ValidationSeverity.Warning,
+                PropertyAlias = "mainImage"
             });
         }
 
@@ -46,7 +47,8 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             messages.Add(new ValidationMessage
             {
                 Message = "Meta description is recommended for SEO.",
-                Severity = ValidationSeverity.Info
+                Severity = ValidationSeverity.Warning,
+                PropertyAlias = "metaDescription"
             });
         }
 

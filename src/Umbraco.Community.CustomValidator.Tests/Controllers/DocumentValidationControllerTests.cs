@@ -121,6 +121,7 @@ public sealed class DocumentValidationControllerTests
 
         Assert.That(response, Is.Not.Null);
         Assert.That(response!.ContentId, Is.EqualTo(documentId));
+        Assert.That(response.TreatWarningsAsErrors, Is.False);
     }
 
     [Test]

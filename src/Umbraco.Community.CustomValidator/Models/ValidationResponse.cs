@@ -12,4 +12,6 @@ public sealed record ValidationResponse
     public IEnumerable<ValidationMessage>? Messages { get; init; }
 
     public string? Culture { get; init; }
+
+    public bool TreatWarningsAsErrors { get; init; }
 }
