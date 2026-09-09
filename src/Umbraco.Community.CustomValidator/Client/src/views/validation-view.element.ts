@@ -11,6 +11,7 @@ import { ValidationSeverity } from '../validation/types.js';
 
 const SAVE_DELAY_MS = 500;
 const INITIAL_VALIDATION_DELAY_MS = 500;
+const ENTITY_UPDATED_DELAY_MS = 300;
 
 const SEVERITY_ORDER: Record<ValidationSeverity, number> = {
     [ValidationSeverity.Error]: 0,
@@ -106,7 +107,7 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
         // Check if this event is for our current document
         if (eventUnique === documentUnique && this._documentId) {
             // Brief delay to ensure backend cache is cleared
-            await this.#delay(300);
+            await this.#delay(ENTITY_UPDATED_DELAY_MS);
             await this.#validateAndUpdateResult({ skipSave: true });
         }
     };
@@ -297,10 +298,14 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
         if (!this._validationResult) {
             return { errors: 0, warnings: 0 };
         }
-        return {
-            errors: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Error).length,
-            warnings: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Warning).length
-        };
+        return this._validationResult.messages.reduce(
+            (counts, m) => {
+                if (m.severity === ValidationSeverity.Error) counts.errors++;
+                else if (m.severity === ValidationSeverity.Warning) counts.warnings++;
+                return counts;
+            },
+            { errors: 0, warnings: 0 }
+        );
     }
 
     #delay(ms: number): Promise<void> {

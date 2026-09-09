@@ -42,19 +42,11 @@ export class ValidationApiService extends UmbControllerBase {
                 await this.handleErrorResponse(response);
                 
                 // Return empty result on error so UI can continue
-                return {
-                    contentId: id,
-                    hasValidator: false,
-                    messages: []
-                };
+                return this.emptyResult(id);
             }
             
             const result = await response.json();
-            return result || {
-                contentId: id,
-                hasValidator: false,
-                messages: []
-            };
+            return result || this.emptyResult(id);
             
         } catch (error) {
             console.error('Validation API error:', error);
@@ -63,12 +55,17 @@ export class ValidationApiService extends UmbControllerBase {
             await this.showErrorNotification(error);
             
             // Return empty result so UI doesn't break
-            return {
-                contentId: id,
-                hasValidator: false,
-                messages: []
-            };
+            return this.emptyResult(id);
         }
+    }
+
+    /** Fallback result shape used whenever the API call fails or returns nothing usable. */
+    private emptyResult(id: string): ValidationResult {
+        return {
+            contentId: id,
+            hasValidator: false,
+            messages: []
+        };
     }
     
     private async handleErrorResponse(response: Response): Promise<void> {

@@ -36,6 +36,16 @@ export class ValidationWorkspaceContext extends UmbContextBase {
     #documentId?: string;
     /** Map of validator aliases to their instances (for cleanup) */
     #validators = new Map<string, CustomValidationVariantValidator>();
+    /**
+     * Key of the validator currently designated primary owner of invariant properties.
+     * Deliberately sticky: once assigned, it is only reassigned if that validator no
+     * longer exists (its variant was removed) — NOT recomputed from array order on every
+     * `variantOptions` emission. Recomputing from "index 0" on every emission risked
+     * spurious demote/promote churn if variant ordering ever shifted between emissions,
+     * which could leave an invariant property's message/watcher briefly (or, in some
+     * timing cases, indefinitely) without any active owner.
+     */
+    #primaryKey?: string;
 
     #istanceCounter = new UmbNumberState(0);
     readonly instanceCounter = this.#istanceCounter.asObservable();
@@ -98,19 +108,28 @@ export class ValidationWorkspaceContext extends UmbContextBase {
                     return;
                 }
 
-                // Create validators for each variant. Exactly one is marked "primary" (the
-                // first in iteration order) - it is the sole owner of any INVARIANT
-                // property's message/watcher (see CustomValidationVariantValidator). Without
-                // this, every variant's validator would resolve the same invariant property
-                // to the identical message path and race to add/remove it independently,
-                // which triggers a stack overflow in Umbraco's native hint propagation when
-                // multiple panes render the same invariant property in split view.
+                // Create validators for each variant. Exactly one is marked "primary" - it is
+                // the sole owner of any INVARIANT property's message/watcher (see
+                // CustomValidationVariantValidator). Without this, every variant's validator
+                // would resolve the same invariant property to the identical message path and
+                // race to add/remove it independently, which triggers a stack overflow in
+                // Umbraco's native hint propagation when multiple panes render the same
+                // invariant property in split view.
+                //
+                // The primary key is sticky (see #primaryKey doc comment above): only
+                // (re)assigned here if the current primary no longer exists in this emission's
+                // variant list (e.g. that variant was actually removed from the document).
+                const keys = variantOptions.map((o) => `${o.culture ?? 'invariant'}`);
+                if (!this.#primaryKey || !keys.includes(this.#primaryKey)) {
+                    this.#primaryKey = keys[0];
+                }
+
                 const newValidators = new Map<string, CustomValidationVariantValidator>();
 
-                variantOptions.forEach((variantOption, index) => {
+                variantOptions.forEach((variantOption) => {
                     const variantId = UmbVariantId.Create(variantOption);
                     const key = `${variantOption.culture ?? 'invariant'}`;
-                    const isPrimary = index === 0;
+                    const isPrimary = key === this.#primaryKey;
 
                     // Check if validator already exists
                     if (this.#validators.has(key)) {
@@ -146,6 +165,7 @@ export class ValidationWorkspaceContext extends UmbContextBase {
             validator.destroy();
         }
         this.#validators.clear();
+        this.#primaryKey = undefined;
     }
 
     incrementInstance() {
@@ -173,9 +193,47 @@ export class ValidationWorkspaceContext extends UmbContextBase {
         }
     }
 
-    /** Remove all inline badges added by this package. Called on document switch. */
+    /**
+     * Remove all inline badges added by this package, plus any now-orphaned `client`-type
+     * message mirror left behind by Umbraco's own `UmbFormControlValidator` specifically at
+     * the paths we just cleared (see the detailed comment on
+     * `CustomValidationVariantValidator.#clearPathAndStaleClientMirror` for why these can be
+     * orphaned). Scoped ONLY to paths this package's own `customValidator` messages existed
+     * at — never a blanket sweep of every `client` message in the document, since a
+     * `client` message can also represent a genuine, unrelated native validation failure
+     * (e.g. a native "mandatory field" check) that has nothing to do with us and must not
+     * be masked.
+     */
     clearInlineMessages() {
-        this.#nativeValidationContext?.messages.removeMessagesByType('customValidator');
+        const context = this.#nativeValidationContext;
+        if (!context) return;
+
+        // Batch every mutation below into a single native notify cycle (Phase 10 fix in
+        // plan.md) — a document switch can clear many customValidator messages and their
+        // stale `client` mirrors at once; without batching each one is its own independent
+        // mute->unmute->notify cycle, which in split view can compound into a stack overflow
+        // via Umbraco's own parent/child hint-controller reentrancy.
+        context.messages.initiateChange();
+        try {
+            const ownPaths = new Set(
+                context.messages.getMessages()
+                    .filter((m) => m.type === 'customValidator')
+                    .map((m) => m.path)
+            );
+            context.messages.removeMessagesByType('customValidator');
+
+            if (ownPaths.size === 0) return;
+
+            const remaining = context.messages.getMessages();
+            for (const path of ownPaths) {
+                const stillHasNonClientMessage = remaining.some((m) => m.type !== 'client' && m.path === path);
+                if (!stillHasNonClientMessage) {
+                    context.messages.removeMessagesByTypeAndPath('client', path);
+                }
+            }
+        } finally {
+            context.messages.finishChange();
+        }
     }
 }
 
