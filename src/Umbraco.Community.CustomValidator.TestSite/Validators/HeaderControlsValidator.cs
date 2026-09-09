@@ -13,7 +13,7 @@ public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
 
         if (string.IsNullOrWhiteSpace(content.Subtitle))
         {
-            messages.AddWarning<IHeaderControls>("Subtitle empty", x => x.Subtitle);
+            messages.AddWarning<HeaderControls>("Subtitle empty", x => x.Subtitle);
         }
 
         if (string.IsNullOrWhiteSpace(content.Subtitle) && !string.IsNullOrWhiteSpace(content.Title))

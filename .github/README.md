@@ -199,11 +199,11 @@ Sometimes a message is really about the relationship between two (or more) prope
 ```csharp
 messages.AddError<IHeaderControls>(
     "Title requires a Subtitle to also be set",
-    x => x.Title,
-    x => x.Subtitle);
+    x => x.Title, //Primary property
+    relatedProperties: x => x.Subtitle);
 ```
 
-Each property's badge clears independently — fixing `Subtitle` clears only its own badge, `Title`'s badge remains until `Title` itself is edited. The Validation tab lists related properties by their friendly display name, not the raw alias.
+Related property badges clear when one is edited. The Validation tab lists related properties by their friendly display name.
 
 ## Advanced Usage
 
@@ -368,11 +368,13 @@ public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
 }
 ```
 
-The property expressions above work for mixin interfaces too (`IHeaderControls.Subtitle`), so a single validator applies its alias-aware inline badges across every document type that composes it - no need to hand-type the alias per implementing type.
+The property expressions above work for mixin interfaces too (`IHeaderControls.Subtitle`) this just normalises the property name as it doesn't have context of the attribute for the actual alias. 
+
+If your alias differs to your property name I suggest to use the strongly typed version of your composition i.e. `HeaderControls` instead.
 
 ### Building Messages Without the Fluent Helpers
 
-The fluent `AddError`/`AddWarning`/`AddInfo` helpers are the recommended way to build messages, but `ValidationMessage` itself stays a plain, dependency-free record - construct it directly if you prefer, or if you already have the alias as a string (e.g. from configuration):
+The fluent `AddError`/`AddWarning`/`AddInfo` helpers are the recommended way to build messages, but `ValidationMessage` itself stays a plain, dependency-free record - construct it directly if you prefer, or if you already have the alias as a string.
 
 ```csharp
 messages.Add(new ValidationMessage
