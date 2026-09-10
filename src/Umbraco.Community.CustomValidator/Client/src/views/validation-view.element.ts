@@ -26,10 +26,9 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
 } as const;
 
 /**
- * Each instance of this element represents ONE split-view pane's "Validation" tab.
- * All validation/culture state below is intentionally pane-LOCAL (not shared via the
- * workspace context) so that split-view panes never mirror one another's results.
- * See plan.md for the bug history this restores/fixes.
+ * Each instance represents ONE split-view pane's "Validation" tab. All validation/culture
+ * state is intentionally pane-local (not shared via the workspace context) so split-view
+ * panes never mirror one another's results.
  */
 @customElement('custom-validator-workspace-view')
 export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
@@ -40,10 +39,8 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     #variantObserverSetup = false;
     #instanceIndexAssigned = false;
 
-    // NOTE: instanceCount/_documentId/_currentCulture are internal bookkeeping only — they are
-    // never read in render(), so they are plain fields (not @state()) to avoid scheduling
-    // needless Lit re-renders on every document/culture switch or pane-index assignment.
-    // Only _validationResult and _isValidating actually affect the rendered output.
+    // instanceCount/_documentId/_currentCulture are internal bookkeeping only (never read
+    // in render()), so they're plain fields, not @state(), to avoid needless re-renders.
     private instanceCount = 0;
 
     private _documentId?: string;
@@ -56,10 +53,9 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
 
     private _currentCulture?: string;
 
-    // propertyAlias -> friendly display name, for "related property" aliases referenced by the
-    // current result's messages. Resolved asynchronously (structure lookups) then cached, since
-    // render() must stay a synchronous Map read; a NEW Map is assigned on update so Lit detects
-    // the change.
+    // propertyAlias -> friendly display name for related-property aliases in current
+    // messages (own aliases show their label inline via the property row itself). Cached
+    // across calls; a new Map is assigned on update so Lit detects the change.
     @state()
     private _relatedNamesByAlias = new Map<string, string>();
 
@@ -264,11 +260,9 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     };
 
     /**
-     * Resolves friendly display names for every distinct "related property" alias referenced by
-     * the given messages (the message's own propertyAlias already has its label shown inline via
-     * the property row itself, so only relatedPropertyAliases need a resolved name here). Results
-     * are cached in `_relatedNamesByAlias` across calls, since property structure doesn't change
-     * mid-session — falls back to the raw alias if the structure lookup can't find it.
+     * Resolves friendly display names for distinct "related property" aliases referenced by
+     * the given messages (own aliases already show inline via the property row). Cached in
+     * `_relatedNamesByAlias` across calls; falls back to the raw alias if not found.
      */
     async #resolveRelatedNames(messages: ValidationMessage[]) {
         const workspace = this.#contentWorkspace;

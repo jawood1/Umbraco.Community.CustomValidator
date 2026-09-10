@@ -17,16 +17,13 @@ export const VALIDATION_WORKSPACE_CONTEXT = new UmbContextToken<ValidationWorksp
 /**
  * Workspace context for custom validation.
  *
- * This context is a thin lifecycle manager: it exposes the shared API service and a
- * shared `isValidating` flag, tracks the split-view pane instance counter (used by the
- * tab view to know which pane it is), and creates/destroys one self-contained
+ * A thin lifecycle manager: exposes the shared API service and `isValidating` flag, tracks
+ * the split-view pane instance counter, and creates/destroys one self-contained
  * `CustomValidationVariantValidator` per variant (culture + segment).
  *
- * It intentionally holds NO shared validation result state. Each consumer (the
- * Validation tab view, and each per-variant validator) fetches and owns its own result
- * independently — this matches the official Umbraco example pattern
- * (examples/custom-validation-workspace-context) and keeps split-view panes isolated
- * from one another (see plan.md for the bug history this fixes).
+ * Holds no shared validation result state — each consumer (Validation tab view, each
+ * per-variant validator) fetches and owns its own result, keeping split-view panes
+ * isolated from one another.
  */
 export class ValidationWorkspaceContext extends UmbContextBase {
     #apiService = new ValidationApiService(this);
@@ -38,12 +35,9 @@ export class ValidationWorkspaceContext extends UmbContextBase {
     #validators = new Map<string, CustomValidationVariantValidator>();
     /**
      * Key of the validator currently designated primary owner of invariant properties.
-     * Deliberately sticky: once assigned, it is only reassigned if that validator no
-     * longer exists (its variant was removed) — NOT recomputed from array order on every
-     * `variantOptions` emission. Recomputing from "index 0" on every emission risked
-     * spurious demote/promote churn if variant ordering ever shifted between emissions,
-     * which could leave an invariant property's message/watcher briefly (or, in some
-     * timing cases, indefinitely) without any active owner.
+     * Sticky: only reassigned if that validator no longer exists (its variant was removed),
+     * not recomputed from array order every emission — that could cause spurious
+     * demote/promote churn and briefly leave an invariant property without an owner.
      */
     #primaryKey?: string;
 
@@ -77,14 +71,6 @@ export class ValidationWorkspaceContext extends UmbContextBase {
                     this.#setupValidatorsForDocument();
                 }
             }, '_cvDocumentId');
-
-            // NOTE: previously there was a blanket observer here on the whole `workspace.data`
-            // object that cleared ALL inline messages (removeMessagesByType) on ANY property
-            // edit, anywhere in the document. That was a bug of ours, not Umbraco's intended
-            // behavior — the official Umbraco example scopes clearing to one specific property
-            // + variant via propertyValueByAlias/removeMessagesByTypeAndPath. That granular
-            // clearing now lives in CustomValidationVariantValidator (per-property, per-variant),
-            // so no document-wide clear-on-edit observer is needed here.
         });
     }
 
@@ -108,17 +94,13 @@ export class ValidationWorkspaceContext extends UmbContextBase {
                     return;
                 }
 
-                // Create validators for each variant. Exactly one is marked "primary" - it is
-                // the sole owner of any INVARIANT property's message/watcher (see
-                // CustomValidationVariantValidator). Without this, every variant's validator
-                // would resolve the same invariant property to the identical message path and
-                // race to add/remove it independently, which triggers a stack overflow in
-                // Umbraco's native hint propagation when multiple panes render the same
-                // invariant property in split view.
+                // Create validators for each variant. Exactly one is marked "primary" and is
+                // the sole owner of any INVARIANT property's message/watcher — otherwise every
+                // variant would resolve an invariant property to the same message path and
+                // race to add/remove it, which can overflow Umbraco's native hint propagation
+                // when multiple split-view panes render the same property.
                 //
-                // The primary key is sticky (see #primaryKey doc comment above): only
-                // (re)assigned here if the current primary no longer exists in this emission's
-                // variant list (e.g. that variant was actually removed from the document).
+                // The primary key is sticky (see field doc comment above).
                 const keys = variantOptions.map((o) => `${o.culture ?? 'invariant'}`);
                 if (!this.#primaryKey || !keys.includes(this.#primaryKey)) {
                     this.#primaryKey = keys[0];
@@ -194,25 +176,21 @@ export class ValidationWorkspaceContext extends UmbContextBase {
     }
 
     /**
-     * Remove all inline badges added by this package, plus any now-orphaned `client`-type
-     * message mirror left behind by Umbraco's own `UmbFormControlValidator` specifically at
-     * the paths we just cleared (see the detailed comment on
-     * `CustomValidationVariantValidator.#clearPathAndStaleClientMirror` for why these can be
-     * orphaned). Scoped ONLY to paths this package's own `customValidator` messages existed
-     * at — never a blanket sweep of every `client` message in the document, since a
-     * `client` message can also represent a genuine, unrelated native validation failure
-     * (e.g. a native "mandatory field" check) that has nothing to do with us and must not
-     * be masked.
+     * Removes all inline badges added by this package, plus any now-orphaned `client`-type
+     * message mirror left behind by Umbraco's own `UmbFormControlValidator` at the paths we
+     * just cleared (see `CustomValidationVariantValidator.#clearPathAndStaleClientMirror`
+     * for why these can be orphaned). Scoped only to paths our own `customValidator`
+     * messages existed at — never a blanket sweep of every `client` message, since one can
+     * also represent a genuine, unrelated native validation failure that must not be masked.
      */
     clearInlineMessages() {
         const context = this.#nativeValidationContext;
         if (!context) return;
 
-        // Batch every mutation below into a single native notify cycle (Phase 10 fix in
-        // plan.md) — a document switch can clear many customValidator messages and their
-        // stale `client` mirrors at once; without batching each one is its own independent
-        // mute->unmute->notify cycle, which in split view can compound into a stack overflow
-        // via Umbraco's own parent/child hint-controller reentrancy.
+        // Batch every mutation below into a single native notify cycle — a document switch
+        // can clear many messages and their stale `client` mirrors at once; without batching,
+        // each is its own mute->unmute->notify cycle, which in split view can compound into a
+        // stack overflow via Umbraco's own hint-controller reentrancy.
         context.messages.initiateChange();
         try {
             const ownPaths = new Set(

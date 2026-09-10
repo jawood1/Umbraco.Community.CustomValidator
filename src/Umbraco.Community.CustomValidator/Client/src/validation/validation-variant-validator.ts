@@ -15,16 +15,17 @@ import { ValidationSeverity, type ValidationMessage } from './types.js';
 const ENTITY_UPDATED_DELAY_MS = 300;
 
 /**
- * Self-contained per-variant validator for custom validation.
+ * Self-contained per-variant validator (one per culture+segment combination). Fetches its
+ * own validation result and injects messages into the native validation context at the
+ * exact path for its variant, re-fetching on save/publish via `UmbEntityUpdatedEvent`.
+ * Instances are fully independent (no shared/broadcast state), so split-view panes editing
+ * different cultures never interfere with each other.
  *
- * This validator is responsible for a single variant (culture + segment combination).
- * It fetches its OWN validation result for its OWN culture, and injects validation
- * messages into the validation context with the exact path for that variant.
- *
- * It is fully self-driven: it fetches on creation, and re-fetches whenever the document
- * is saved/published (via its own `UmbEntityUpdatedEvent` listener). There is no external
- * broadcast or shared result relay — each variant instance is completely independent, so
- * split-view panes editing different cultures never interfere with one another.
+ * Native message keys are kept STABLE across revalidate cycles (see `#messageKey` /
+ * `#applyMessages`) and only INVARIANT properties are managed by a single "primary"
+ * instance (see `#isPrimary`). Both exist to avoid a known Umbraco core bug where
+ * churning/duplicating native hints in split view causes a stack overflow in its
+ * hint-propagation controller (`hint.controller.ts`) — see README "Known Limitations".
  *
  * Pattern follows the official Umbraco example:
  * https://github.com/umbraco/Umbraco-CMS/blob/main/src/Umbraco.Web.UI.Client/examples/custom-validation-workspace-context/
@@ -38,45 +39,24 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 	#isValidating = false;
 	/** propertyAlias -> path, for messages this validator currently owns. */
 	#ownPaths = new Map<string, string>();
-	/**
-	 * Stable message key -> path, for every native `customValidator` message this validator
-	 * instance currently has applied (see `#messageKey`). Tracked so `#applyMessages` can
-	 * diff against the newly-required message set on every revalidate cycle instead of
-	 * unconditionally removing and re-adding everything — see the detailed comment in
-	 * `#applyMessages` for why this matters (it eliminates most of the native hint churn
-	 * that was triggering a split-view stack overflow in Umbraco's own hint propagation).
-	 */
+	/** Stable message key -> path, for every native message currently applied (see `#messageKey`). */
 	#appliedKeys = new Map<string, string>();
-	/**
-	 * Every alias this validator currently has an active watcher on — a superset of
-	 * `#ownPaths`' keys, since a validator may watch (read-only) a related alias it does
-	 * NOT own the message for (e.g. a related INVARIANT alias only the primary validator
-	 * owns), purely to know when to clear its OWN owned aliases. See #applyMessages.
-	 */
+	/** Every alias with an active watcher — a superset of `#ownPaths`, since a watch-only alias may not be owned. */
 	#watchedAliases = new Set<string>();
 	/** propertyAlias -> variesByCulture, cached since property structure doesn't change mid-session. */
 	#variesByCultureCache = new Map<string, boolean>();
 	/** The blocking messages from this validator's most recent successful revalidate cycle. */
 	#lastMessages: ValidationMessage[] = [];
 	/**
-	 * Set at the very start of `destroy()`. Several methods on this class are async and
-	 * mutate shared validation state (the native validation context's messages, this
-	 * instance's own watcher controllers) after an `await` point — if this instance is torn
-	 * down (document/workspace switch) while one of those is still in flight, the pending
-	 * continuation must NOT go on to mutate anything once it resumes: nothing would ever
-	 * clear a message it re-adds after this point, since its owning validator is already
-	 * gone. Every such continuation checks this flag immediately after its `await` and
-	 * bails out early if it's already `true`.
+	 * Set at the start of `destroy()`. Async continuations check this after their `await`
+	 * and bail out if true, so a torn-down instance never mutates shared validation state
+	 * on a delayed callback.
 	 */
 	#isDestroyed = false;
 	/**
-	 * Only the primary validator (one per document, see ValidationWorkspaceContext) manages
-	 * INVARIANT properties. Every variant resolves an invariant property to the identical
-	 * message path (culture is always null), so if every validator instance independently
-	 * added/removed/watched it, they would race on the same path — which triggers a stack
-	 * overflow in Umbraco's native hint propagation when the property is rendered in more
-	 * than one split-view pane. Culture-varying properties are unaffected: every validator
-	 * always owns its own path for those, regardless of this flag.
+	 * Only the primary validator manages INVARIANT properties (culture is always null, so
+	 * every variant would otherwise race on the same path — see class doc comment).
+	 * Culture-varying properties are unaffected: every validator always owns its own path.
 	 */
 	#isPrimary: boolean;
 
@@ -114,16 +94,10 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 	}
 
 	/**
-	 * Updates whether this validator is the primary owner of INVARIANT properties (see the
-	 * class doc comment on #isPrimary).
-	 *
-	 * On ANY change (promotion or demotion), immediately re-applies this validator's own
-	 * last-known message set (rather than waiting for its next revalidate cycle, which only
-	 * happens on save/publish) — otherwise an invariant property's message/watcher would have
-	 * no active owner at all from the moment of the change until the next save, leaving its
-	 * badge unable to live-clear on edit in the meantime. #applyMessages is a full rebuild
-	 * (see its own comments), so this is always safe and simply reflects the new #isPrimary
-	 * value on the next add/watch decision.
+	 * Updates whether this validator is the primary owner of INVARIANT properties.
+	 * Immediately re-applies the last-known message set on change, rather than waiting for
+	 * the next revalidate cycle, so an invariant property's badge never goes owner-less
+	 * between promotion/demotion and the next save.
 	 */
 	setIsPrimary(isPrimary: boolean) {
 		if (this.#isPrimary === isPrimary) return;
@@ -183,35 +157,23 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 		if (!this.#validationContext || !this.#contentWorkspace) return;
 
 		if (messages.length === 0) {
-			// Nothing required any more - remove everything we previously applied/watched.
 			this.#clearAllOwnedAndWatched();
 			return;
 		}
 
-		// Resolve each message's target aliases once and reuse across every pass below,
-		// instead of recomputing `#targetAliases(msg)` (a Set + filter allocation) on every
-		// iteration of three separate loops over the same message array.
+		// Resolve each message's target aliases (own + related) once, reused across the passes below.
 		const messageTargets = messages.map((msg) => ({ msg, targets: this.#targetAliases(msg) }));
 
-		// Resolve the path + variesByCulture for every distinct property alias concurrently,
-		// instead of awaiting them one at a time — property-structure lookups are independent
-		// of one another. A message may target more than one alias (its own propertyAlias PLUS
-		// any related aliases), so collect the full flattened set across all messages first.
+		// Resolve path + variesByCulture for every distinct alias concurrently.
 		const aliases = [...new Set(messageTargets.flatMap((mt) => mt.targets))];
 		const resolved = await Promise.all(aliases.map((alias) => this.#resolveAlias(alias)));
 		const resolvedByAlias = new Map(aliases.map((alias, i) => [alias, resolved[i]]));
 
-		// Bail out if this validator was torn down while the alias/path lookups above were in
-		// flight — nothing below this point should add messages or watchers back for an
-		// instance that's already gone; there would be no live validator left to ever clear
-		// them again.
+		// Bail out if torn down while the lookups above were in flight.
 		if (this.#isDestroyed) return;
 
-		// Which aliases this validator instance will actually manage (i.e. add a message for
-		// and own the path/lifecycle of) - survives the invariant/primary-only filter below.
-		// Only the primary validator manages INVARIANT properties — every variant would
-		// otherwise resolve the same property to the identical path and race to
-		// add/remove/watch it independently (see class doc comment on #isPrimary).
+		// Aliases this instance will actually own a message for. Only the primary validator
+		// manages INVARIANT aliases (see #isPrimary) — every other validator skips them.
 		const managedAliasSet = new Set<string>();
 		for (const { targets } of messageTargets) {
 			for (const alias of targets) {
@@ -222,21 +184,11 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 			}
 		}
 
-		// Build the full set of native messages REQUIRED after this cycle, keyed by a
-		// STABLE identity (alias + severity + body — see `#messageKey`), instead of the
-		// native manager's own auto-generated random key. This is the key fix (see plan.md,
-		// Phase 11): Umbraco's `UmbContentValidationToHintsManager` tracks which messages it
-		// has already converted to hints via a `#hintedMsgs` Set keyed by `message.key`, and
-		// independently, asynchronously (one microtask per message) removes+re-adds a hint
-		// whenever a message's key disappears and reappears. Previously we unconditionally
-		// cleared EVERY message and re-added it with a brand new random key on every single
-		// revalidate cycle (including ones - like Save & Publish - where nothing actually
-		// changed), forcing Umbraco to tear down and rebuild every hint on every save, which
-		// is what was overflowing the call stack via its own parent/child hint-controller
-		// propagation in split view. By keeping the same key for a message that hasn't
-		// changed, and only removing/adding the genuine delta below, an unchanged message
-		// never disappears from the native messages array at all - so Umbraco's own
-		// `#hintedMsgs.has(message.key)` check short-circuits and no hint work happens for it.
+		// Build the set of native messages REQUIRED after this cycle, keyed by a STABLE
+		// identity (alias + severity + body — see `#messageKey`) rather than a fresh random
+		// key each cycle. This lets the diff below only remove/add the genuine delta, so an
+		// unchanged message never disappears from the native messages array — avoiding the
+		// native hint-churn that can overflow the call stack in split view (see class doc).
 		const required = new Map<string, { alias: string; path: string; body: string }>();
 		for (const { msg, targets } of messageTargets) {
 			for (const alias of targets) {
@@ -247,16 +199,13 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 			}
 		}
 
-		// Watchers are cheap Observable subscriptions (not native validation messages/hints),
-		// so they're still torn down and rebuilt in full every cycle - this isn't part of the
-		// hint-churn problem the diffing below addresses.
+		// Watchers are cheap Observable subscriptions, so they're rebuilt in full every cycle.
 		for (const alias of this.#watchedAliases) {
 			this.removeUmbControllerByAlias(this.#watcherAlias(alias));
 		}
 		this.#watchedAliases.clear();
 
-		// Remove only messages that are no longer required (the actual delta) instead of
-		// clearing everything unconditionally.
+		// Remove only messages no longer required (the actual delta).
 		const staleKeys = [...this.#appliedKeys.keys()].filter((key) => !required.has(key));
 		if (staleKeys.length > 0) {
 			const stalePaths = new Set(staleKeys.map((key) => this.#appliedKeys.get(key)!));
@@ -264,19 +213,16 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 			for (const key of staleKeys) {
 				this.#appliedKeys.delete(key);
 			}
-			// A path may still be required by a DIFFERENT (still-required) message at the
-			// same path - only clear its stale `client` mirror once genuinely nothing
-			// remains there.
+			// A path may still be required by a different still-required message — only
+			// clear its stale `client` mirror once nothing remains there.
 			for (const path of stalePaths) {
 				this.#clearStaleClientMirrorIfPathEmpty(path);
 			}
 		}
 
-		// Add (or, for anything unchanged, safely no-op re-add) every currently-required
-		// message. Umbraco's own addMessage() already skips genuinely unchanged
-		// (type, path, body) triples - so as long as we don't remove them first (see above),
-		// this only ever performs real native work for messages that are actually new this
-		// cycle. Still batched into a single notify cycle for whatever delta does apply.
+		// Add (or safely no-op re-add) every currently-required message — addMessage() already
+		// skips genuinely unchanged (type, path, body) triples, so this only does real work
+		// for messages that are new this cycle. Batched into one notify cycle.
 		this.#validationContext.messages.initiateChange();
 		try {
 			for (const [key, { path, body }] of required) {
@@ -295,16 +241,13 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 			}
 		}
 
-		// For every alias that appears as a target of a message THIS instance owns at least
-		// one sibling of, work out which of ITS OWN owned paths should be cleared when that
-		// alias's value changes - "watchAliasToOwnedSiblings". Crucially, the watched alias
-		// itself does not have to be owned/managed by this instance: e.g. a related INVARIANT
-		// alias (owned only by the primary validator) still needs to be *observed* (read-only)
-		// by every OTHER (non-primary) validator that owns the culture-varying primary alias
-		// of the same message, purely so that fixing the shared invariant field also clears
-		// every culture's own copy of the co-badge - not just the primary culture's copy.
-		// Observing a value is read-only (no addMessage/removeMessagesByTypeAndPath call), so
-		// this never re-introduces the multi-writer race that #isPrimary guards against.
+		// For every alias that's a target alongside one this instance owns, work out which
+		// owned paths should clear when that alias's value changes ("watchAliasToOwnedSiblings").
+		// The watched alias itself needn't be owned by this instance — e.g. a related
+		// INVARIANT alias (owned only by the primary validator) is still observed read-only
+		// by non-primary validators owning the culture-varying sibling, so fixing the shared
+		// field clears every culture's copy of the co-badge too. Read-only observation never
+		// reintroduces the multi-writer race #isPrimary guards against.
 		const watchAliasToOwnedSiblings = new Map<string, Set<string>>();
 		for (const { targets: allTargets } of messageTargets) {
 			const ownedTargets = allTargets.filter((alias) => managedAliasSet.has(alias));
@@ -372,15 +315,10 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 		const propType = await firstValueFrom(obs, { defaultValue: undefined });
 
 		if (propType === undefined) {
-			// The property structure isn't resolvable yet (e.g. content-type structure still
-			// loading on the very first revalidate cycle right after opening the document) -
-			// do NOT cache this. Caching a guess here would make a wrong guess permanent for
-			// the lifetime of this validator instance: guessing "varies by culture" for an
-			// actually-invariant property makes its live-edit watcher use this validator's own
-			// culture as the variant filter, which never matches the property's real
-			// culture:null value entry, so the badge could never clear on edit. Returning the
-			// (uncached) fallback here lets the next revalidate cycle (save/publish, or a
-			// later property-structure emission) resolve the real value and self-correct.
+			// Structure not resolvable yet (e.g. still loading right after opening the
+			// document) — don't cache a guess, since a wrong "varies by culture" guess would
+			// permanently break the live-edit watcher for an invariant property. Return the
+			// uncached fallback; a later cycle resolves and caches the real value.
 			return true;
 		}
 
@@ -390,22 +328,12 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 	}
 
 	/**
-	 * Observes a single property's value (scoped to this validator's own variantId — or, for
-	 * INVARIANT properties, no variant filter at all, since Umbraco's own property-value
-	 * lookup does an exact culture+segment match and an invariant property only ever has one
-	 * value entry with culture:null/segment:null; passing this validator's own culture would
-	 * never match it, so the watcher would never fire). The first emission is always the
-	 * current value on subscribe, so it is skipped — only a genuine subsequent edit triggers
-	 * a clear.
-	 *
-	 * `watchAlias` is the alias whose VALUE is being observed — it does not have to be an
-	 * alias this validator owns a message for (see #applyMessages: a validator may watch a
-	 * related alias purely to know when to clear its own owned aliases, e.g. a non-primary
-	 * validator watching a related INVARIANT alias it doesn't itself own). On a genuine
-	 * change, clears the message + ownership bookkeeping for every alias in
-	 * `ownedAliasesToClear` that this validator still owns (skipping any already cleared),
-	 * then stops watching `watchAlias` itself (its job is done for this message cycle — a
-	 * fresh watcher is set up on the next #applyMessages cycle if still relevant).
+	 * Observes a single property's value (scoped to this validator's variantId, or no
+	 * variant filter for INVARIANT properties, which only ever have one culture:null entry).
+	 * The first emission (current value on subscribe) is skipped — only a genuine edit
+	 * triggers a clear. `watchAlias` doesn't have to be an alias this validator owns a
+	 * message for — it may be watch-only (see #applyMessages). On a genuine change, clears
+	 * every alias in `ownedAliasesToClear` this validator still owns, then stops watching.
 	 */
 	async #watchPropertyForClear(watchAlias: string, variesByCulture: boolean, ownedAliasesToClear: Set<string>) {
 		if (!this.#contentWorkspace) return;
@@ -414,9 +342,7 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 		const obs = await this.#contentWorkspace.propertyValueByAlias(watchAlias, watchVariantId);
 		if (!obs) return;
 
-		// Bail out if this validator was torn down while the observable lookup above was in
-		// flight — subscribing now would leak a watcher for an instance that's already gone
-		// and that nothing will ever clean up via the normal #applyMessages/destroy paths.
+		// Bail out if torn down while the observable lookup above was in flight.
 		if (this.#isDestroyed) return;
 
 		let isFirstEmission = true;
@@ -428,11 +354,8 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 					return;
 				}
 
-				// The value changed — clear every owned alias associated with this watched
-				// alias (see #applyMessages), since they all represent the same underlying
-				// validation concern. Batched into a single native notify cycle (Phase 10 fix
-				// in plan.md) since a related-property message can clear several sibling
-				// aliases at once here.
+				// Value changed — clear every owned alias tied to this watched alias, batched
+				// into a single native notify cycle.
 				this.#validationContext?.messages.initiateChange();
 				try {
 					for (const alias of ownedAliasesToClear) {
@@ -445,7 +368,7 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 					this.#validationContext?.messages.finishChange();
 				}
 
-				// This watcher's own job is done - stop watching this specific alias's value.
+				// This watcher's job is done — a fresh one is set up next #applyMessages cycle if still relevant.
 				this.#watchedAliases.delete(watchAlias);
 				this.removeUmbControllerByAlias(this.#watcherAlias(watchAlias));
 			},
@@ -474,10 +397,8 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 				this.#onEntityUpdated
 			);
 		}
-		// Remove any owned messages, plus every active watcher (owned or watch-only) this
-		// validator set up, before it is torn down (variant removed / doc switched). Watcher
-		// controllers are also cleaned up automatically by the framework on host disconnect,
-		// but we remove them explicitly for clarity.
+		// Remove any owned messages and watchers before teardown. Watcher controllers are
+		// also auto-cleaned on host disconnect, but removed explicitly here for clarity.
 		this.#clearAllOwnedAndWatched();
 		this.#validationContext = undefined;
 		this.#contentWorkspace = undefined;
@@ -486,13 +407,9 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 	}
 
 	/**
-	 * Removes every message and watcher this validator instance currently owns (both
-	 * "owning" watchers and read-only "watch-only" watchers — see `#watchedAliases`), then
-	 * resets the bookkeeping maps. Shared by `#applyMessages` (full refresh, before
-	 * re-applying the new message set) and `destroy()` (final teardown) — both need
-	 * identical cleanup, just at different points in the lifecycle. Batched into a single
-	 * native notify cycle (see the Phase 10 stack-overflow fix in plan.md) rather than one
-	 * per removed path/watcher, for the same reason as `#applyMessages`'s add loop.
+	 * Removes every message and watcher this instance owns, then resets bookkeeping.
+	 * Shared by `#applyMessages` (full refresh) and `destroy()` (final teardown) — both need
+	 * identical cleanup. Batched into a single native notify cycle.
 	 */
 	#clearAllOwnedAndWatched() {
 		this.#validationContext?.messages.initiateChange();
@@ -512,28 +429,16 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 	}
 
 	/**
-	 * Removes our own `customValidator` message at `path`, then — if no other message (of
-	 * ANY type besides Umbraco's own `client` type) remains at that exact path — also
-	 * removes any lingering `client`-type message at the same path.
+	 * Removes our own `customValidator` message at `path`, then — if nothing else remains
+	 * there — also removes any lingering `client`-type message at the same path.
 	 *
-	 * This directly compensates for a gap in Umbraco's own `UmbFormControlValidator`
-	 * (`form-control-validator.controller.js`): it mirrors any non-`client` message at a
-	 * property's data path into its OWN separate `client`-type message (via
-	 * `UmbBindServerValidationToFormControl`'s reactive `addValidator`/`checkValidity` chain)
-	 * so the native form control shows as invalid — but its `hostDisconnected()` explicitly
-	 * skips removing that mirrored `client` message (the removal call is commented out in
-	 * Umbraco's own source). If the property's DOM element is disconnected (switching
-	 * workspace view/tab, or document) before that reactive chain has a chance to run
-	 * (`observe` → `#demolish()` → `checkValidity()` → valid event → remove `client`
-	 * message), the mirrored message is orphaned forever — it has no owner left to ever
-	 * clear it, and it alone is enough to block Save/Publish even though our own
-	 * authoritative `customValidator` message is already gone.
-	 *
-	 * We only remove the `client` mirror once we've confirmed no other (non-`client`)
-	 * message still exists at this path — mirroring exactly the condition
-	 * `UmbBindServerValidationToFormControl` itself uses to decide whether the control
-	 * should be valid — so this never masks a genuine, still-outstanding native validation
-	 * failure (e.g. a native "mandatory field" message) at the same path.
+	 * This compensates for a gap in Umbraco's own `UmbFormControlValidator`: it mirrors any
+	 * non-`client` message into its own `client`-type message so the native form control
+	 * shows invalid, but skips removing that mirror on disconnect. If the property's DOM
+	 * element disconnects before its own reactive cleanup runs, the mirror is orphaned and
+	 * alone can block Save/Publish even after our message is gone. We only remove it once no
+	 * other (non-`client`) message remains at the path, so a genuine unrelated native
+	 * failure (e.g. a "mandatory field" check) at the same path is never masked.
 	 */
 	#clearPathAndStaleClientMirror(path: string) {
 		if (!this.#validationContext) return;
@@ -546,12 +451,9 @@ export class CustomValidationVariantValidator extends UmbControllerBase {
 
 	/**
 	 * If no non-`client` message remains at `path`, removes any lingering `client`-type
-	 * message there too (see the detailed comment on `#clearPathAndStaleClientMirror` for
-	 * why this mirror can be orphaned). Split out as its own step so `#applyMessages`'s
-	 * key-based diff can remove stale `customValidator` messages in one batched
-	 * `removeMessageByKeys` call and only THEN check, per affected path, whether the
-	 * `client` mirror is now also safe to remove — without redundantly attempting to
-	 * remove the (already-gone) `customValidator` message a second time.
+	 * mirror too (see `#clearPathAndStaleClientMirror`). Split out so `#applyMessages`'s
+	 * key-based diff can batch-remove stale `customValidator` messages first, then check per
+	 * affected path whether the mirror is now also safe to remove.
 	 */
 	#clearStaleClientMirrorIfPathEmpty(path: string) {
 		if (!this.#validationContext) return;
