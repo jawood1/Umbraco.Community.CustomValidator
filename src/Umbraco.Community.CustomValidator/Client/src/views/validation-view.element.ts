@@ -1,15 +1,17 @@
-import { customElement, state, html, nothing, repeat, LitElement, type PropertyValues } from '@umbraco-cms/backoffice/external/lit';
+import { customElement, state, html, nothing, repeat, LitElement } from '@umbraco-cms/backoffice/external/lit';
 import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
 import { UmbTextStyles } from '@umbraco-cms/backoffice/style';
 import { UMB_CONTENT_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/content';
 import { UMB_ACTION_EVENT_CONTEXT } from '@umbraco-cms/backoffice/action';
 import { UmbEntityUpdatedEvent } from '@umbraco-cms/backoffice/entity-action';
+import { firstValueFrom } from '@umbraco-cms/backoffice/external/rxjs';
 import { VALIDATION_WORKSPACE_CONTEXT } from '../contexts/validation-workspace-context.js';
 import type { ValidationResult, NotificationColor, ValidationMessage } from '../validation/types.js';
 import { ValidationSeverity } from '../validation/types.js';
 
 const SAVE_DELAY_MS = 500;
 const INITIAL_VALIDATION_DELAY_MS = 500;
+const ENTITY_UPDATED_DELAY_MS = 300;
 
 const SEVERITY_ORDER: Record<ValidationSeverity, number> = {
     [ValidationSeverity.Error]: 0,
@@ -23,6 +25,11 @@ const SEVERITY_COLOR_MAP: Record<ValidationSeverity, NotificationColor> = {
     [ValidationSeverity.Info]: 'default'
 } as const;
 
+/**
+ * Each instance represents ONE split-view pane's "Validation" tab. All validation/culture
+ * state is intentionally pane-local (not shared via the workspace context) so split-view
+ * panes never mirror one another's results.
+ */
 @customElement('custom-validator-workspace-view')
 export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     #countContext?: typeof VALIDATION_WORKSPACE_CONTEXT.TYPE;
@@ -32,54 +39,56 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     #variantObserverSetup = false;
     #instanceIndexAssigned = false;
 
-    @state()
+    // instanceCount/_documentId/_currentCulture are internal bookkeeping only (never read
+    // in render()), so they're plain fields, not @state(), to avoid needless re-renders.
     private instanceCount = 0;
-    
-    @state()
+
     private _documentId?: string;
-    
+
     @state()
     private _validationResult?: ValidationResult;
-    
+
     @state()
     private _isValidating = false;
-    
-    @state()
+
     private _currentCulture?: string;
-    
+
+    // propertyAlias -> friendly display name for related-property aliases in current
+    // messages (own aliases show their label inline via the property row itself). Cached
+    // across calls; a new Map is assigned on update so Lit detects the change.
     @state()
-    private _cultureReady = false;
-    
+    private _relatedNamesByAlias = new Map<string, string>();
+
     constructor() {
         super();
-        
+
         this.consumeContext(VALIDATION_WORKSPACE_CONTEXT, (instance) => {
             if (!instance) return;
-            
+
             this.#countContext = instance;
-            
+
             this.observe(instance.instanceCounter, (count) => {
                 if (!this.#instanceIndexAssigned) {
                     this.#instanceIndexAssigned = true;
                     this.instanceCount = count;
-                    
+
                     instance.incrementInstance();
                     this.#trySetupVariantObserver();
                 }
             });
         });
-        
+
         // Listen for save/publish events
         this.consumeContext(UMB_ACTION_EVENT_CONTEXT, (context) => {
             if (!context) return;
-            
+
             this.#actionEventContext = context;
             this.#actionEventContext.addEventListener(
                 UmbEntityUpdatedEvent.TYPE,
                 this.#onEntityUpdated
             );
         });
-        
+
         this.#setupWorkspaceObservers();
         this.#setupValidationObservers();
         window.addEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
@@ -87,54 +96,47 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
 
     #onEntityUpdated = async (event: Event) => {
         if (!(event instanceof UmbEntityUpdatedEvent)) return;
-        
+
         const eventUnique = event.getUnique();
         const documentUnique = this.#contentWorkspace?.getUnique();
-        
+
         // Check if this event is for our current document
         if (eventUnique === documentUnique && this._documentId) {
-
             // Brief delay to ensure backend cache is cleared
-            await this.#delay(300);
+            await this.#delay(ENTITY_UPDATED_DELAY_MS);
             await this.#validateAndUpdateResult({ skipSave: true });
         }
     };
-    
+
     #setupWorkspaceObservers() {
         this.consumeContext(UMB_CONTENT_WORKSPACE_CONTEXT, (workspace) => {
             if (!workspace) return;
             this.#contentWorkspace = workspace;
             this.#observeDocumentChanges(workspace);
-            
+
             // Try to set up variant observer once we have the workspace
             this.#trySetupVariantObserver();
         });
     }
-    
+
     #trySetupVariantObserver() {
         // Only set up once, and only when both workspace and index are assigned
         if (this.#variantObserverSetup || !this.#contentWorkspace || !this.#instanceIndexAssigned) {
             return;
         }
-        
+
         this.#variantObserverSetup = true;
         this.#observeVariant(this.#contentWorkspace);
     }
-    
+
     #observeVariant(workspace: typeof UMB_CONTENT_WORKSPACE_CONTEXT.TYPE) {
-        
         this.observe(
             workspace.splitView.activeVariantByIndex(this.instanceCount),
             async (variant) => {
-
-                const newCulture = variant?.culture ?? undefined;
+                const newCulture = (variant as { culture?: string } | undefined)?.culture ?? undefined;
                 const cultureChanged = this._currentCulture !== newCulture;
                 this._currentCulture = newCulture;
-                
-                if (!this._cultureReady) {
-                    this._cultureReady = true;
-                }
-                
+
                 // Validate on culture change OR first load (no result yet)
                 if (this._documentId && (cultureChanged || !this._validationResult)) {
                     await this.#validateAndUpdateResult({ useDelay: true, skipSave: true });
@@ -148,12 +150,12 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
             workspace.unique,
             (unique) => {
                 const isDocumentSwitch = this.#isDocumentSwitch(unique);
-                
+
                 // Clear UI state when switching to a different document
                 if (isDocumentSwitch) {
                     this._validationResult = undefined;
                 }
-                
+
                 // Update tracked document ID
                 this._documentId = unique ?? undefined;
                 this.#currentDocumentId = unique ?? undefined;
@@ -181,21 +183,21 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     override disconnectedCallback() {
         super.disconnectedCallback();
         window.removeEventListener('custom-validator:validate-all', this.#onGlobalValidateAll);
-        
+
         // Clean up action event listener
         if (this.#actionEventContext) {
             this.#actionEventContext.removeEventListener(
                 UmbEntityUpdatedEvent.TYPE,
-                this.#onEntityUpdated // Remove the "as EventListener"
+                this.#onEntityUpdated
             );
         }
-        
+
         if (this.#countContext) {
             this.#countContext.resetInstanceCounter();
         }
     }
 
-    // Unified validation method for all cultures
+    // Unified validation method for all cultures — result is stored LOCALLY only.
     async #validateAndUpdateResult(options: { useDelay?: boolean; skipSave?: boolean } = {}) {
         if (!this._documentId) return;
 
@@ -212,17 +214,17 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
 
                     const result = await validationContext.validateManually(this._documentId!, this._currentCulture);
                     this._validationResult = result;
-
+                    await this.#resolveRelatedNames(result?.messages ?? []);
                 } catch (error) {
                     console.error('Validation failed:', error);
-                    
+
                     // Show error state in UI instead of just logging
                     this._validationResult = {
                         contentId: this._documentId!,
                         hasValidator: false,
                         messages: [{
                             message: 'Validation failed. Please check the logs.',
-                            severity: 'Error' as any
+                            severity: ValidationSeverity.Error
                         }]
                     };
                 }
@@ -255,16 +257,49 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
             }
             await this.#validateAndUpdateResult({ skipSave });
         }
+    };
+
+    /**
+     * Resolves friendly display names for distinct "related property" aliases referenced by
+     * the given messages (own aliases already show inline via the property row). Cached in
+     * `_relatedNamesByAlias` across calls; falls back to the raw alias if not found.
+     */
+    async #resolveRelatedNames(messages: ValidationMessage[]) {
+        const workspace = this.#contentWorkspace;
+        if (!workspace) return;
+
+        const aliases = [...new Set(messages.flatMap((m) => m.relatedPropertyAliases ?? []))]
+            .filter((alias) => !this._relatedNamesByAlias.has(alias));
+
+        if (aliases.length === 0) return;
+
+        const resolved = await Promise.all(
+            aliases.map(async (alias) => {
+                const obs = await workspace.structure.propertyStructureByAlias(alias);
+                const propType = await firstValueFrom(obs, { defaultValue: undefined });
+                return [alias, propType?.name ?? alias] as const;
+            })
+        );
+
+        const next = new Map(this._relatedNamesByAlias);
+        for (const [alias, name] of resolved) {
+            next.set(alias, name);
+        }
+        this._relatedNamesByAlias = next;
     }
 
     #getMessageCounts(): { errors: number; warnings: number } {
         if (!this._validationResult) {
             return { errors: 0, warnings: 0 };
         }
-        return {
-            errors: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Error).length,
-            warnings: this._validationResult.messages.filter(m => m.severity === ValidationSeverity.Warning).length
-        };
+        return this._validationResult.messages.reduce(
+            (counts, m) => {
+                if (m.severity === ValidationSeverity.Error) counts.errors++;
+                else if (m.severity === ValidationSeverity.Warning) counts.warnings++;
+                return counts;
+            },
+            { errors: 0, warnings: 0 }
+        );
     }
 
     #delay(ms: number): Promise<void> {
@@ -276,7 +311,6 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     }
 
     #renderValidationResults() {
-
         if (this._isValidating || !this._validationResult) {
             return this.#renderLoadingState();
         }
@@ -300,7 +334,6 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     }
 
     #renderMessagesTable(messages: ValidationMessage[]): unknown {
-
         const sortedMessages = [...messages].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 
         return html`
@@ -319,11 +352,26 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
                                         ${msg.severity}
                                     </uui-tag>
                                 </uui-table-cell>
-                                <uui-table-cell>${msg.message}</uui-table-cell>
+                                <uui-table-cell>
+                                    ${msg.message}
+                                    ${this.#renderRelatedProperties(msg)}
+                                </uui-table-cell>
                             </uui-table-row>
                         `
                     )}
         </uui-table>`;
+    }
+
+    #renderRelatedProperties(msg: ValidationMessage) {
+        if (!msg.relatedPropertyAliases?.length) return nothing;
+
+        const names = msg.relatedPropertyAliases.map((alias) => this._relatedNamesByAlias.get(alias) ?? alias);
+
+        return html`
+            <div style="color: var(--uui-color-text-alt); font-size: 0.85em; margin-top: var(--uui-size-space-1);">
+                Related: ${names.join(', ')}
+            </div>
+        `;
     }
 
     #renderLoadingState() {
@@ -366,7 +414,7 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     }
 
     #renderHeaderIcon(errorCount: number) {
-        return errorCount > 0 
+        return errorCount > 0
             ? html`<uui-icon name="icon-delete" style="color: var(--uui-color-danger);"></uui-icon>`
             : html`<uui-icon name="icon-check" style="color: var(--uui-color-positive);"></uui-icon>`;
     }
@@ -388,7 +436,7 @@ export class CustomValidatorWorkspaceView extends UmbElementMixin(LitElement) {
     override render() {
         // Show controls if any culture has a validator
         const shouldShowControls = this._validationResult?.hasValidator !== false && this._validationResult !== undefined;
-        
+
         return html`
             <umb-body-layout header-transparent header-fit-height>
                 <div style="display: flex; flex-direction: column; gap: var(--uui-size-layout-1);">

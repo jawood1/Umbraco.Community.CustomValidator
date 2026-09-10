@@ -105,6 +105,19 @@ public sealed class CustomValidationServiceTests
         Assert.That(result.Messages, Is.Empty);
     }
 
+    [Test]
+    public async Task ExecuteValidationAsync_WithNoValidator_ReflectsTreatWarningsAsErrorsSetting()
+    {
+        // Arrange
+        var content = CreateMockContent();
+
+        // Act
+        var result = await _sut.ExecuteValidationAsync(content, null);
+
+        // Assert
+        Assert.That(result.TreatWarningsAsErrors, Is.False);
+    }
+
     #endregion
 
     #region ExecuteValidationAsync - With Validator Tests
@@ -139,6 +152,31 @@ public sealed class CustomValidationServiceTests
 
         // Assert
         Assert.That(callCount, Is.EqualTo(1), "Validator should only be called once due to caching");
+    }
+
+    [Test]
+    public async Task ExecuteValidationAsync_ReturnsCurrentTreatWarningsAsErrors_NotStaleCachedValue()
+    {
+        // Arrange
+        var content = CreateMockContent();
+        var sut = CreateServiceWithValidator();
+
+        // Act - first call caches the response while TreatWarningsAsErrors is false
+        var firstResult = await sut.ExecuteValidationAsync(content, "en-US");
+
+        // Flip the option after the response has already been cached
+        _optionsMock.Setup(x => x.Value).Returns(new CustomValidatorOptions
+        {
+            CacheExpirationMinutes = 30,
+            TreatWarningsAsErrors = true
+        });
+
+        var secondResult = await sut.ExecuteValidationAsync(content, "en-US");
+
+        // Assert - even though the cached message list is reused, the flag itself must always
+        // reflect the CURRENT option value rather than what was true when it was cached.
+        Assert.That(firstResult.TreatWarningsAsErrors, Is.False);
+        Assert.That(secondResult.TreatWarningsAsErrors, Is.True);
     }
 
     #endregion

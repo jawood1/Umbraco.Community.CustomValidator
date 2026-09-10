@@ -1,5 +1,5 @@
 ﻿using Umbraco.Cms.Web.Common.PublishedModels;
-using Umbraco.Community.CustomValidator.Enums;
+using Umbraco.Community.CustomValidator.Extensions;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Validation;
 
@@ -13,11 +13,15 @@ public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
 
         if (string.IsNullOrWhiteSpace(content.Subtitle))
         {
-            messages.Add(new ValidationMessage
-            {
-                Message = "Subtitle empty",
-                Severity = ValidationSeverity.Error
-            });
+            messages.AddWarning<HeaderControls>("Subtitle empty", x => x.Subtitle);
+        }
+
+        if (string.IsNullOrWhiteSpace(content.Subtitle) && !string.IsNullOrWhiteSpace(content.Title))
+        {
+            messages.AddError<IHeaderControls>(
+                "Title requires a Subtitle to also be set",
+                x => x.Title,
+                relatedProperties: x => x.Subtitle);
         }
 
         return Task.FromResult<IEnumerable<ValidationMessage>>(messages);

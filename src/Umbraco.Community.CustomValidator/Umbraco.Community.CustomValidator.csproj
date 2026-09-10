@@ -31,6 +31,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- Allows the test project to unit test internal helpers (e.g. PropertyAliasResolver)
+		     directly, without exposing them as public API surface. -->
+		<InternalsVisibleTo Include="Umbraco.Community.CustomValidator.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<None Include="..\..\docs\logo.png">
 		<Pack>True</Pack>
 		<PackagePath>\</PackagePath>

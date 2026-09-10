@@ -1,3 +1,4 @@
+using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Web.Common.PublishedModels;
 using Umbraco.Community.CustomValidator.Enums;
 using Umbraco.Community.CustomValidator.Models;
@@ -16,7 +17,18 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             messages.Add(new ValidationMessage
             {
                 Message = $"Title: is too short ({content.Title.Length} characters) minimum length 10 characters.",
-                Severity = ValidationSeverity.Error
+                Severity = ValidationSeverity.Error,
+                PropertyAlias = "title"
+            });
+        }
+
+        if(!string.IsNullOrWhiteSpace(content.Title) && content.Title.Contains("z"))
+        {
+            messages.Add(new ValidationMessage
+            {
+                Message = $"ANOTHER ERROR",
+                Severity = ValidationSeverity.Error,
+                PropertyAlias = "title"
             });
         }
 
@@ -25,7 +37,8 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             messages.Add(new ValidationMessage
             {
                 Message = "Main Image: missing alt text for accessibility.",
-                Severity = ValidationSeverity.Warning
+                Severity = ValidationSeverity.Warning,
+                PropertyAlias = "mainImage"
             });
         }
 
@@ -34,7 +47,18 @@ public class HomePageValidator() : BaseDocumentValidator<Home>
             messages.Add(new ValidationMessage
             {
                 Message = "Meta description is recommended for SEO.",
-                Severity = ValidationSeverity.Info
+                Severity = ValidationSeverity.Warning,
+                PropertyAlias = "metaDescription",
+            });
+        }
+
+        if(content.ContentRows?.Count > 1)
+        {
+             messages.Add(new ValidationMessage
+            {
+                Message = $"More than 1 content row",
+                Severity = ValidationSeverity.Error,
+                PropertyAlias = "contentRows",
             });
         }
 

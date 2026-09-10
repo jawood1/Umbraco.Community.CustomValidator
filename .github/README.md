@@ -10,11 +10,14 @@ Custom Validator is a validation framework for Umbraco backoffice that provides 
 
 - ✅ **Real-time Validation** - Validate documents as editors work in the backoffice
 - 🌍 **Multi-Culture Support** - Validate content for specific cultures in split-view mode
+- 🏷️ **Inline Field Badges** - Validation messages appear directly next to the relevant property, not just in the tab
+- 🔗 **Related Properties** - A single message can flag more than one property (e.g. cross-field rules)
 - 🚫 **Publish Prevention** - Automatically blocks publishing when validation errors exist
 - 📊 **Severity Levels** - Categorize validation messages as Error, Warning, or Info
 - 🎨 **Validation Tab** - Dedicated validation tab in the content workspace with color-coded messages
 - 🚩 **Tree Flags** - Configurable flag icons on the content tree to surface validation errors at a glance
 - 🔧**Easy to Extend** - Simple base class for creating custom validators
+- ✍️ **Fluent Message Builder** - Strongly-typed `AddError`/`AddWarning`/`AddInfo` helpers, no hand-typed alias strings
 - 📝 **Type-Safe** - Built with strongly-typed models and enums
 
 ## Screenshots
@@ -24,6 +27,9 @@ Custom Validator is a validation framework for Umbraco backoffice that provides 
 
 ### Multi-Culture Split View
 ![Multi-culture validation results displayed in split-view mode](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/split-lang-view.jpg)
+
+### Content Workspace Validation Errors
+![Content workspace validation errors](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/content-workspace-errors.jpg)
 
 ## Supported Versions
 
@@ -66,11 +72,11 @@ Install-Package Umbraco.Community.CustomValidator
 
 ### 1. Create a Validator
 
-Create a validator by inheriting from `BaseDocumentValidator<T>`:
+Create a validator by inheriting from `BaseDocumentValidator<T>`. Use the fluent `AddError`/`AddWarning`/`AddInfo` helpers to build up messages — they resolve the property alias for you from a strongly-typed expression, so there's no need to hand-type alias strings:
 
 ```csharp
 using Umbraco.Cms.Web.Common.PublishedModels;
-using Umbraco.Community.CustomValidator.Enums;
+using Umbraco.Community.CustomValidator.Extensions;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Validation;
 
@@ -80,37 +86,31 @@ public class ArticleValidator : BaseDocumentValidator<Article>
     {
         var messages = new List<ValidationMessage>();
 
-        // Validate title
+        // Validate title - shows an inline badge next to the Title field, as well as
+        // in the Validation tab
         if (string.IsNullOrWhiteSpace(content.Title))
         {
-            messages.Add(new ValidationMessage(
-                Message: "Article title is required",
-                Severity: ValidationSeverity.Error
-            ));
+            messages.AddError<Article>("Article title is required", x => x.Title);
         }
 
         // Validate excerpt length
         if (!string.IsNullOrWhiteSpace(content.Excerpt) && content.Excerpt.Length > 200)
         {
-            messages.Add(new ValidationMessage(
-                Message: "Excerpt should not exceed 200 characters",
-                Severity: ValidationSeverity.Warning
-            ));
+            messages.AddWarning<Article>("Excerpt should not exceed 200 characters", x => x.Excerpt);
         }
 
-        // Informational message
+        // Informational message - document-level, no property alias, no inline badge
         if (content.Tags?.Any() == true)
         {
-            messages.Add(new ValidationMessage(
-                Message: $"Article has {content.Tags.Count()} tags",
-                Severity: ValidationSeverity.Info
-            ));
+            messages.AddInfo($"Article has {content.Tags.Count()} tags");
         }
 
         return Task.FromResult<IEnumerable<ValidationMessage>>(messages);
     }
 }
 ```
+
+> Prefer building `ValidationMessage` directly? That still works — see [Building Messages Without the Fluent Helpers](#building-messages-without-the-fluent-helpers).
 
 ### 2. Register Your Validator
 
@@ -156,7 +156,7 @@ builder.Services.AddScopedDocumentValidator<ProductValidator, Product>();
 - **Scoped**: Validators needing `IContentService`, `DbContext`, or other per-request services
 - **Transient**: Rarely needed, use `AddTransientDocumentValidator<T>()` if required
 
-### 3. Use the Validation Tab
+### 3. Use the Validation Tab and Inline Field Badges
 
 Navigate to any document in the Umbraco backoffice. You'll see a new "Validation" tab in the content workspace. The tab displays:
 
@@ -164,6 +164,8 @@ Navigate to any document in the Umbraco backoffice. You'll see a new "Validation
 - ❌ Validation errors (blocks publishing)
 - ⚠️ Validation warnings
 - ℹ️ Informational messages
+
+Any message tied to a property (via `AddError<T>`/`AddWarning<T>`/`AddInfo<T>`, or a manually-set `PropertyAlias`) also shows a coloured badge directly next to that property's label in the content workspace — editors don't need to open the Validation tab to spot which field needs attention.
 
 ## Validation Severity Levels
 
@@ -174,6 +176,40 @@ The package supports three severity levels:
 | `ValidationSeverity.Error` | Blocks publishing | Red (Danger) |
 | `ValidationSeverity.Warning` | Allows publishing | Orange (Warning) |
 | `ValidationSeverity.Info` | Informational only | Blue (Default) |
+
+## Inline Field Validation Badges
+
+Setting a property alias on a message (via the fluent helpers, or `PropertyAlias` directly) shows a badge next to that field's label — not just in the Validation tab. The badge shares the same message text and severity colour, and clears automatically the moment the editor changes that field's value (no need to re-run validation manually to see it disappear).
+
+```csharp
+// Fluent helper - resolves the alias for you from the property expression
+messages.AddError<Article>("Article title is required", x => x.Title);
+```
+
+```csharp
+// Equivalent, built manually
+messages.Add(new ValidationMessage
+{
+    Message = "Article title is required",
+    Severity = ValidationSeverity.Error,
+    PropertyAlias = "title"
+});
+```
+
+Messages with no property alias (e.g. `AddInfo("Article has 3 tags")`) only ever appear in the Validation tab, exactly as before — this is fully opt-in and requires no changes to existing validators.
+
+### Related Properties
+
+Sometimes a message is really about the relationship between two (or more) properties - for example, "Title requires a Subtitle to also be set". Pass any related properties as additional expressions and the badge appears on **all** of them, not just the primary one:
+
+```csharp
+messages.AddError<IHeaderControls>(
+    "Title requires a Subtitle to also be set",
+    x => x.Title, //Primary property
+    relatedProperties: x => x.Subtitle);
+```
+
+Related property badges clear when one is edited. The Validation tab lists related properties by their friendly display name.
 
 ## Advanced Usage
 
@@ -194,14 +230,15 @@ Customize the validation behavior by adding settings to your `appsettings.json`:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `TreatWarningsAsErrors` | `bool` | `false` | When `true`, treats all validation warnings as errors, blocking publish operations when warnings are present |
+| `TreatWarningsAsErrors` | `bool` | `false` | When `true`, treats all validation warnings as errors, blocking publish operations and showing inline field badges for warnings, same as errors |
 | `CacheExpirationMinutes` | `int` | `30` | Duration in minutes that validation results are cached. Set to `0` to disable caching |
 | `EntityFlagMode` | `string` | `Lazy` | Controls when validation flags appear on documents in the backoffice tree. See [Entity Flag Modes](#entity-flag-modes) |
 
 ### Examples
 
 #### Strict Validation Mode
-Treat all warnings as errors to enforce stricter content quality:
+Treat all warnings as errors to enforce stricter content quality — warnings will also block
+publishing and show a (red) inline field badge, just like errors:
 ```json
 {
   "Umbraco": {
@@ -313,13 +350,46 @@ public class ArticleValidator : BaseDocumentValidator<Article>
 Validate interfaces for reusable validation
 
 ```csharp
-public class ArticleValidator : BaseDocumentValidator<IHeaderControls>
+public class HeaderControlsValidator : BaseDocumentValidator<IHeaderControls>
 {
-    public override async Task<IEnumerable<ValidationMessage>> ValidateAsync(IHeaderControls content)
+    public override Task<IEnumerable<ValidationMessage>> ValidateAsync(IHeaderControls content)
     {
-        // Your common validation logic
+        var messages = new List<ValidationMessage>();
+
+        if (string.IsNullOrWhiteSpace(content.Subtitle))
+        {
+            messages.AddWarning<IHeaderControls>("Subtitle empty", x => x.Subtitle);
+        }
+
+        if (string.IsNullOrWhiteSpace(content.Subtitle) && !string.IsNullOrWhiteSpace(content.Title))
+        {
+            messages.AddError<IHeaderControls>(
+                "Title requires a Subtitle to also be set",
+                x => x.Title,
+                relatedProperties: x => x.Subtitle);
+        }
+
+        return Task.FromResult<IEnumerable<ValidationMessage>>(messages);
     }
 }
+```
+
+The property expressions above work for mixin interfaces too (`IHeaderControls.Subtitle`) this just normalises the property name as it doesn't have context of the attribute for the actual alias. 
+
+If your alias differs to your property name I suggest to use the strongly typed version of your composition i.e. `HeaderControls` instead.
+
+### Building Messages Without the Fluent Helpers
+
+The fluent `AddError`/`AddWarning`/`AddInfo` helpers are the recommended way to build messages, but `ValidationMessage` itself stays a plain, dependency-free record - construct it directly if you prefer, or if you already have the alias as a string.
+
+```csharp
+messages.Add(new ValidationMessage
+{
+    Message = "Article title is required",
+    Severity = ValidationSeverity.Error,
+    PropertyAlias = "title",
+    RelatedPropertyAliases = new[] { "subtitle" } // optional
+});
 ```
 
 ### Blocking Publishing
@@ -374,6 +444,17 @@ Record type representing a single validation message.
 **Properties:**
 - `Message` (string) - The validation message text
 - `Severity` (ValidationSeverity) - The severity level (Error, Warning, Info)
+- `PropertyAlias` (string?) - Optional property alias; when set, shows an inline field badge in addition to the Validation tab entry
+- `RelatedPropertyAliases` (IEnumerable\<string\>?) - Optional additional property aliases that should also show this message's badge (e.g. cross-field validation)
+
+### ValidationMessageCollectionExtensions
+
+Fluent, strongly-typed extension methods on `ICollection<ValidationMessage>` for building messages without hand-typed alias strings. Property aliases are resolved from the expression via `[ImplementPropertyType]` where available, falling back to ModelsBuilder's own naming convention (lowercased property name) otherwise - so these work for both concrete generated models and mixin interfaces.
+
+**Methods (each returns the collection, so calls can be chained):**
+- `AddError<TContent>(string message, Expression<Func<TContent, object>> property, params Expression<Func<TContent, object>>[] relatedProperties)` where `TContent : IPublishedContent`
+- `AddWarning<TContent>(...)` / `AddInfo<TContent>(...)` - same signature, different severity
+- `AddError(string message)` / `AddWarning(string message)` / `AddInfo(string message)` - document-level overloads with no property alias
 
 ### ValidationSeverity (Enum)
 
@@ -390,8 +471,8 @@ public enum ValidationSeverity
 
 The package consists of:
 
-- **Backend (C#)**: Validation service, base validator class, API controller
-- **Frontend (TypeScript/Lit)**: Custom workspace view tab, context management, UI components
+- **Backend (C#)**: Validation service, base validator class, fluent message-builder extensions, API controller
+- **Frontend (TypeScript/Lit)**: Custom workspace view tab, per-variant validation context, inline field badges, UI components
 - **Integration**: Notification handlers for publish prevention
 
 ## Contributing

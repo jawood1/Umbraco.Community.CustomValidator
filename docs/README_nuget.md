@@ -10,9 +10,12 @@ A document type validation framework for Umbraco CMS v17+ that provides real-tim
 
 - ✅ Real-time validation in the Umbraco backoffice
 - 🌍 Multi-culture support with split-view validation
+- 🏷️ Inline field badges - validation messages appear next to the relevant property, not just in the tab
+- 🔗 Related properties - a single message can flag more than one property
 - 🚫 Automatic publish blocking when validation errors exist
 - 📊 Three severity levels: Error, Warning, Info
 - 🎨 Dedicated validation tab with color-coded messages
+- ✍️ Fluent `AddError`/`AddWarning`/`AddInfo` message builder - no hand-typed alias strings
 - 🔧 Easy to extend with custom validators
 
 ## Quick Start
@@ -21,7 +24,7 @@ A document type validation framework for Umbraco CMS v17+ that provides real-tim
 
 ```csharp
 using Umbraco.Cms.Web.Common.PublishedModels;
-using Umbraco.Community.CustomValidator.Enums;
+using Umbraco.Community.CustomValidator.Extensions;
 using Umbraco.Community.CustomValidator.Models;
 using Umbraco.Community.CustomValidator.Validation;
 
@@ -33,24 +36,20 @@ public class ArticleValidator : BaseDocumentValidator<Article>
 
         if (string.IsNullOrWhiteSpace(content.Title))
         {
-            messages.Add(new ValidationMessage(
-                Message: "Article title is required",
-                Severity: ValidationSeverity.Error
-            ));
+            messages.AddError<Article>("Article title is required", x => x.Title);
         }
 
         if (!string.IsNullOrWhiteSpace(content.Excerpt) && content.Excerpt.Length > 200)
         {
-            messages.Add(new ValidationMessage(
-                Message: "Excerpt should not exceed 200 characters",
-                Severity: ValidationSeverity.Warning
-            ));
+            messages.AddWarning<Article>("Excerpt should not exceed 200 characters", x => x.Excerpt);
         }
 
         return Task.FromResult<IEnumerable<ValidationMessage>>(messages);
     }
 }
 ```
+
+`AddError`/`AddWarning`/`AddInfo` resolve the property alias from the expression for you, and show an inline badge next to that field in addition to the Validation tab entry.
 
 ### 2. Register Your Validator
 
@@ -69,7 +68,7 @@ public class ValidationComposer : IComposer
 
 ### 3. View Validation Results
 
-Navigate to any document in the Umbraco backoffice and open the **Validation** tab to see real-time validation results.
+Navigate to any document in the Umbraco backoffice and open the **Validation** tab to see real-time validation results - or spot the inline badge next to the field itself.
 
 ## Validation Severity Levels
 
