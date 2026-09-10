@@ -29,7 +29,7 @@ Custom Validator is a validation framework for Umbraco backoffice that provides 
 ![Multi-culture validation results displayed in split-view mode](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/split-lang-view.jpg)
 
 ### Content Workspace Validation Errors
-![Multi-culture validation results displayed in split-view mode](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/content-workspace-errors.jpg)
+![Content workspace validation errors](https://raw.githubusercontent.com/jawood1/Umbraco.Community.CustomValidator/main/docs/content-workspace-errors.jpg)
 
 ## Installation
 
